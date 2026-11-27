@@ -58,3 +58,8 @@ export function dayLabel(date: string): string {
 export function priceLabel(thb: number): string {
   return `${thb.toLocaleString("en-US")} บาท`;
 }
+
+/** Today's date (YYYY-MM-DD) in Bangkok. */
+export function todayBangkok(nowMs: number): string {
+  return ymd(nowMs);
+}

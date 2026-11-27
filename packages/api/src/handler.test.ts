@@ -54,6 +54,16 @@ function makeDb(over: Partial<Db> = {}): Db {
     }),
     getBooking: async (id) => (id === BK ? record : null),
     cancelBooking: async () => {},
+    getShopOwner: async () => "UOWNER",
+    createPhoneCustomer: async () => "cust-phone",
+    listSchedule: async () => ({ staff, bookings: [], timeOff: [] }),
+    insertTimeOff: async (i) => ({
+      id: "to-1",
+      staffId: i.staffId,
+      start: i.start,
+      end: i.end,
+      reason: i.reason,
+    }),
     ...over,
   };
 }

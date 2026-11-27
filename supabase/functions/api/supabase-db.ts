@@ -1,8 +1,14 @@
 // Supabase implementation of the `Db` interface (packages/api/src/types.ts).
 // Not unit-tested (needs a real database); the conflict mapping relies on the
 // bookings_no_overlap exclusion constraint (SQLSTATE 23P01) from T3.
+import { toBangkokIso } from "@kms/core";
 import type { Booking, Service, Staff, TimeOff, WorkingHours } from "@kms/core";
-import type { BookingRecord, Db } from "../../../packages/api/src/types.ts";
+import type {
+  BookingRecord,
+  Db,
+  ScheduleBooking,
+  TimeOffRecord,
+} from "../../../packages/api/src/types.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = any;
@@ -15,6 +21,12 @@ function parseRange(range: string): { start: string; end: string } {
   if (!m || !m[1] || !m[2]) throw new Error(`bad range: ${range}`);
   const iso = (s: string) => new Date(s.replace(" ", "T").replace(/\+00$/, "Z")).toISOString();
   return { start: iso(m[1]), end: iso(m[2]) };
+}
+
+/** Same as parseRange but as +07:00 ISO strings (the LIFF admin page slices HH:mm out of them). */
+function parseBangkokRange(range: string): { start: string; end: string } {
+  const { start, end } = parseRange(range);
+  return { start: toBangkokIso(Date.parse(start)), end: toBangkokIso(Date.parse(end)) };
 }
 
 function check<T>(res: { data: T; error: { message: string; code?: string } | null }): T {
@@ -160,7 +172,7 @@ export function createSupabaseDb(sb: Client): Db {
           customer_id: i.customerId,
           during: `[${i.start},${i.end})`,
           status: "confirmed",
-          channel: "line",
+          channel: i.channel ?? "line",
         })
         .select(BOOKING_COLS)
         .single();
@@ -172,6 +184,85 @@ export function createSupabaseDb(sb: Client): Db {
         await sb.from("bookings").select(BOOKING_COLS).eq("id", bookingId).maybeSingle(),
       );
       return r ? toBooking(r) : null;
+    },
+    async getShopOwner(shopId) {
+      const r: Row | null = check(
+        await sb.from("shops").select("owner_line_user_id").eq("id", shopId).maybeSingle(),
+      );
+      return r ? r.owner_line_user_id : null;
+    },
+    async createPhoneCustomer(shopId, name, phone) {
+      const r: Row = check(
+        await sb
+          .from("customers")
+          .insert({ shop_id: shopId, line_user_id: null, display_name: name, phone })
+          .select("id")
+          .single(),
+      );
+      return r.id;
+    },
+    async listSchedule(shopId, fromIso, toIso) {
+      const window = `[${fromIso},${toIso})`;
+      const staff = await this.listStaff(shopId);
+      const bk: Row[] = check(
+        await sb
+          .from("bookings")
+          .select(
+            "id, staff_id, service_id, during, status, channel, services(name), customers(display_name, phone)",
+          )
+          .eq("shop_id", shopId)
+          .neq("status", "cancelled")
+          .overlaps("during", window),
+      );
+      const off: Row[] = check(
+        await sb
+          .from("time_off")
+          .select("id, staff_id, during, reason")
+          .eq("shop_id", shopId)
+          .overlaps("during", window),
+      );
+      const bookings = bk
+        .map(
+          (r): ScheduleBooking => ({
+            id: r.id,
+            staffId: r.staff_id,
+            serviceId: r.service_id,
+            serviceName: r.services?.name ?? "",
+            customerName: r.customers?.display_name ?? "",
+            customerPhone: r.customers?.phone ?? null,
+            status: r.status,
+            channel: r.channel,
+            ...parseBangkokRange(r.during),
+          }),
+        )
+        .sort((a, b) => a.start.localeCompare(b.start));
+      return {
+        staff,
+        bookings,
+        timeOff: off.map(
+          (r): TimeOffRecord => ({
+            id: r.id,
+            staffId: r.staff_id,
+            reason: r.reason,
+            ...parseBangkokRange(r.during),
+          }),
+        ),
+      };
+    },
+    async insertTimeOff(i) {
+      const r: Row = check(
+        await sb
+          .from("time_off")
+          .insert({
+            shop_id: i.shopId,
+            staff_id: i.staffId,
+            during: `[${i.start},${i.end})`,
+            reason: i.reason,
+          })
+          .select("id")
+          .single(),
+      );
+      return { id: r.id, staffId: i.staffId, start: i.start, end: i.end, reason: i.reason };
     },
     async cancelBooking(bookingId) {
       check(await sb.from("bookings").update({ status: "cancelled" }).eq("id", bookingId));
