@@ -86,6 +86,34 @@ describe("verifyLineSignature", () => {
   });
 });
 
+const postbackEvent = (data: string, userId = "U1") => ({
+  destination: "Udest",
+  events: [
+    { type: "postback", replyToken: "rt1", source: { type: "user", userId }, postback: { data } },
+  ],
+});
+
+describe("reminder postbacks", () => {
+  it("replies to ยืนยันมา and ขอเลื่อน for the booking's own customer", async () => {
+    const { handler, reply } = setup();
+    await handler(req(postbackEvent(`reminder=confirm&booking=${BK}`)));
+    await handler(req(postbackEvent(`reminder=reschedule&booking=${BK}`)));
+    const texts = reply.mock.calls.map((c) => c[2][0]!.text);
+    expect(texts[0]).toContain("ขอบคุณที่ยืนยัน");
+    expect(texts[1]).toContain("แจ้งร้าน");
+  });
+  it("refuses other users, cancelled bookings and ignores unknown postbacks", async () => {
+    const { handler, reply } = setup();
+    await handler(req(postbackEvent(`reminder=confirm&booking=${BK}`, "Uother")));
+    expect(reply.mock.calls[0]![2][0]!.text).toContain("ไม่พบการจอง");
+    const c = setup({ booking: { ...record, status: "cancelled" } });
+    await c.handler(req(postbackEvent(`reminder=confirm&booking=${BK}`)));
+    expect(c.reply.mock.calls[0]![2][0]!.text).toContain("ไม่พบการจอง");
+    await handler(req(postbackEvent("something=else")));
+    expect(reply).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("webhook handler", () => {
   it("401 on invalid signature and does not reply", async () => {
     const { handler, reply } = setup();

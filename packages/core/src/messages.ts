@@ -47,3 +47,37 @@ export function bookingConfirmationText(i: BookingConfirmationInput): string {
 }
 
 export const BOOKING_NOT_FOUND_TEXT = "ไม่พบการจองนี้ กรุณาตรวจสอบหรือจองใหม่อีกครั้ง";
+
+export interface ReminderInput {
+  shopName: string;
+  serviceName: string;
+  staffName: string;
+  start: string;
+}
+
+/** Body text of the "นัดพรุ่งนี้" reminder (kept under LINE's 160-char buttons-template limit). */
+export function reminderText(i: ReminderInput): string {
+  return [
+    `นัดพรุ่งนี้ ⏰ ร้าน${i.shopName}`,
+    `${i.serviceName} (ช่าง${i.staffName})`,
+    formatThaiDateTime(i.start),
+  ].join("\n");
+}
+
+export type ReminderAction = "confirm" | "reschedule";
+
+/** Postback data carried by the reminder buttons. */
+export function reminderPostbackData(action: ReminderAction, bookingId: string): string {
+  return `reminder=${action}&booking=${bookingId}`;
+}
+
+export function parseReminderPostback(
+  data: string,
+): { action: ReminderAction; bookingId: string } | null {
+  const m = /^reminder=(confirm|reschedule)&booking=([0-9a-f-]{36})$/i.exec(data);
+  return m ? { action: m[1] as ReminderAction, bookingId: m[2] as string } : null;
+}
+
+export const REMINDER_CONFIRM_REPLY = "ขอบคุณที่ยืนยันค่ะ แล้วพบกันพรุ่งนี้ 🙏";
+export const REMINDER_RESCHEDULE_REPLY =
+  "รับทราบค่ะ กรุณาแจ้งร้านเพื่อเลื่อนนัดโดยเร็วที่สุด ทางร้านจะช่วยหาเวลาใหม่ให้";

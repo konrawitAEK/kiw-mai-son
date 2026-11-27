@@ -1,4 +1,10 @@
-import { BOOKING_NOT_FOUND_TEXT, bookingConfirmationText } from "@kms/core";
+import {
+  BOOKING_NOT_FOUND_TEXT,
+  REMINDER_CONFIRM_REPLY,
+  REMINDER_RESCHEDULE_REPLY,
+  bookingConfirmationText,
+  parseReminderPostback,
+} from "@kms/core";
 import type { Db } from "./types.js";
 
 /** A shop's LINE channel, already decrypted by the caller (secrets never logged or stored in plain text). */
@@ -59,6 +65,7 @@ interface LineEvent {
   replyToken?: string;
   source?: { userId?: string };
   message?: { type?: string; text?: string };
+  postback?: { data?: string };
 }
 
 function res(status: number, body: string): Response {
@@ -71,7 +78,26 @@ function res(status: number, body: string): Response {
  * (so LINE does not retry-storm); per-event failures are swallowed.
  */
 export function createWebhookHandler(deps: WebhookDeps): (req: Request) => Promise<Response> {
+  async function handlePostback(channel: ChannelInfo, ev: LineEvent) {
+    const pb = parseReminderPostback(ev.postback?.data ?? "");
+    if (!pb || !ev.replyToken) return;
+    const booking = await deps.db.getBooking(pb.bookingId);
+    const userId = ev.source?.userId;
+    const text =
+      !booking ||
+      booking.status === "cancelled" ||
+      booking.shopId !== channel.shopId ||
+      !userId ||
+      booking.customerLineUserId !== userId
+        ? BOOKING_NOT_FOUND_TEXT
+        : pb.action === "confirm"
+          ? REMINDER_CONFIRM_REPLY
+          : REMINDER_RESCHEDULE_REPLY;
+    await deps.reply(channel.channelAccessToken, ev.replyToken, [{ type: "text", text }]);
+  }
+
   async function handleEvent(channel: ChannelInfo, ev: LineEvent) {
+    if (ev.type === "postback") return handlePostback(channel, ev);
     if (ev.type !== "message" || ev.message?.type !== "text" || !ev.replyToken) return;
     const m = CONFIRM_RE.exec((ev.message.text ?? "").trim());
     if (!m || !m[1]) return;
