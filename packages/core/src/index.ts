@@ -23,3 +23,6 @@ export function intervalsOverlap(
 ): boolean {
   return aStart < bEnd && bStart < aEnd;
 }
+
+export * from "./types.js";
+export { availableSlots, bangkokDayStart, toBangkokIso } from "./slots.js";
