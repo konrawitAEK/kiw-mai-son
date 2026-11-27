@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>คิวไม่ซ้อน - ระบบจองคิวใน LINE สำหรับร้านทำผม ทำเล็บ ต่อขนตา บาร์เบอร์</title>
+    <meta
+      name="description"
+      content="ลูกค้าจองคิวในไลน์ร้านได้เลย ไม่ต้องโหลดแอป คิวไม่ซ้อน มีข้อความเตือนนัด เจ้าของร้านลงคิวแทนลูกค้าที่โทรมาได้ ทดลองฟรี 30 วัน"
+    />
+    <meta name="theme-color" content="#06a755" />
+    <meta property="og:title" content="คิวไม่ซ้อน - จองคิวร้านใน LINE ไม่ต้องโหลดแอป" />
+    <meta property="og:description" content="คิวไม่ซ้อน เตือนนัดอัตโนมัติ ทดลองฟรี 30 วัน" />
+    <meta property="og:type" content="website" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2306a755'/%3E%3Cpath d='M9 17l5 5 9-11' stroke='white' stroke-width='3.5' fill='none'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        --green: #05803f;
+        --green-bg: #06a755;
+        --ink: #1a1a1a;
+        --muted: #4d4d4d;
+        --soft: #f3f8f5;
+        --line: #dfe7e2;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        font-family: "Sarabun", "Noto Sans Thai", "Thonburi", "Leelawadee UI", "Tahoma", system-ui,
+          sans-serif;
+        font-size: 17px;
+        line-height: 1.7;
+        color: var(--ink);
+        background: #fff;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      header.top {
+        padding: 14px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      header.top .wrap {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .brand {
+        font-weight: 700;
+        font-size: 20px;
+        color: var(--green);
+        text-decoration: none;
+      }
+      .hero {
+        padding: 40px 0 32px;
+        background: var(--soft);
+      }
+      h1 {
+        font-size: 30px;
+        line-height: 1.35;
+        margin: 0 0 12px;
+      }
+      h2 {
+        font-size: 24px;
+        line-height: 1.4;
+        margin: 0 0 14px;
+      }
+      h3 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      p {
+        margin: 0 0 12px;
+      }
+      .lead {
+        font-size: 19px;
+        color: var(--muted);
+      }
+      section {
+        padding: 36px 0;
+      }
+      .btn {
+        display: inline-block;
+        min-height: 48px;
+        padding: 11px 22px;
+        border-radius: 10px;
+        background: var(--green);
+        color: #fff;
+        font-weight: 700;
+        text-decoration: none;
+        text-align: center;
+      }
+      .btn.alt {
+        background: #fff;
+        color: var(--green);
+        border: 2px solid var(--green);
+      }
+      .btns {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+        background: #fff;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+      }
+      ol.steps {
+        padding-left: 22px;
+        margin: 0;
+      }
+      ol.steps li {
+        margin-bottom: 6px;
+      }
+      .demo {
+        background: var(--soft);
+      }
+      .demo-box {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-items: center;
+      }
+      .qr {
+        width: 200px;
+        height: 200px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+      .price {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--green);
+      }
+      .note {
+        font-size: 15px;
+        color: var(--muted);
+      }
+      footer {
+        padding: 24px 0 40px;
+        border-top: 1px solid var(--line);
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (min-width: 640px) {
+        h1 {
+          font-size: 38px;
+        }
+        .grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="#top">คิวไม่ซ้อน</a>
+        <a
+          class="btn"
+          data-link="signup"
+          href="https://line.me/R/ti/p/@REPLACE_SIGNUP_OA"
+          rel="noopener"
+          >สมัครผ่าน LINE</a
+        >
+      </div>
+    </header>
+
+    <main id="top">
+      <div class="hero">
+        <div class="wrap">
+          <h1>ลูกค้าจองคิวในไลน์ร้านได้เลย คิวไม่ซ้อน ไม่ต้องโหลดแอป</h1>
+          <p class="lead">
+            ระบบจองคิวสำหรับร้านทำผม ทำเล็บ ต่อขนตา และบาร์เบอร์ ใช้ LINE ของร้านเอง
+            ลูกค้าเห็นเฉพาะเวลาว่าง จองเสร็จได้ข้อความยืนยัน และมีข้อความเตือนก่อนนัด
+          </p>
+          <div class="btns">
+            <a class="btn" href="#demo">ลองจองร้านเดโม</a>
+            <a
+              class="btn alt"
+              data-link="signup"
+              href="https://line.me/R/ti/p/@REPLACE_SIGNUP_OA"
+              rel="noopener"
+              >สมัครผ่าน LINE</a
+            >
+          </div>
+        </div>
+      </div>
+
+      <section id="features">
+        <div class="wrap">
+          <h2>ช่วยร้านได้อย่างไร</h2>
+          <div class="grid">
+            <div class="card">
+              <h3>คิวไม่ซ้อน</h3>
+              <p>
+                ระบบกันจองเวลาชนกันของช่างคนเดียวกัน ลูกค้าสองคนกดพร้อมกันก็มีคนได้คิวแค่คนเดียว
+              </p>
+            </div>
+            <div class="card">
+              <h3>จองในไลน์ร้าน</h3>
+              <p>
+                เลือกบริการ เลือกช่าง (หรือช่างคนไหนก็ได้) เลือกวันและเวลา กดยืนยัน จบใน LINE
+                ที่ลูกค้าใช้อยู่แล้ว
+              </p>
+            </div>
+            <div class="card">
+              <h3>เตือนนัดล่วงหน้า</h3>
+              <p>
+                ส่งข้อความเตือนก่อนนัด 1 วัน มีปุ่มยืนยันว่ามา ช่วยลดลูกค้าลืมนัด
+                ร้านเลือกเปิดหรือปิดการเตือนได้
+              </p>
+            </div>
+            <div class="card">
+              <h3>เจ้าของร้านลงคิวแทน</h3>
+              <p>
+                ลูกค้าโทรมาก็ลงคิวให้ได้ในหน้าจอเดียว ดูตารางวันนี้และสัปดาห์นี้
+                ปิดเวลาช่างลาหรือพักได้
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="demo" class="demo">
+        <div class="wrap">
+          <h2>ลองจองร้านเดโม 30 วินาที</h2>
+          <p>
+            สแกน QR ด้วยมือถือ หรือกดปุ่มเพื่อเพิ่มเพื่อน LINE ร้านเดโม แล้วกดเมนู "จองคิว"
+            ลองเองได้เลย
+          </p>
+          <div class="demo-box">
+            <img
+              class="qr"
+              src="qr-demo.svg"
+              width="200"
+              height="200"
+              alt="QR code เพิ่มเพื่อน LINE ร้านเดโม คิวไม่ซ้อน"
+            />
+            <div>
+              <a
+                class="btn"
+                data-link="demo"
+                href="https://line.me/R/ti/p/@REPLACE_DEMO_OA"
+                rel="noopener"
+                >เปิดร้านเดโมใน LINE</a
+              >
+              <p class="note" style="margin-top: 10px">
+                ร้านเดโมใช้ข้อมูลทดสอบ จองแล้วไม่มีใครมารอรับคิวจริง
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="how">
+        <div class="wrap">
+          <h2>เริ่มใช้งานง่าย ๆ</h2>
+          <ol class="steps">
+            <li>ทักสมัครผ่าน LINE แล้วนัดวิดีโอคอลประมาณ 30 นาที</li>
+            <li>ร้านกดตั้งค่าเชื่อม LINE OA ของร้านเอง เราไม่ต้องเป็นแอดมินร้านคุณ</li>
+            <li>ตั้งบริการ ช่าง เวลาเปิดปิด แล้วลองจองจริง 1 ครั้งระหว่างคอล</li>
+            <li>ลูกค้าจองผ่านเมนู "จองคิว" ในไลน์ร้านได้ทันที</li>
+          </ol>
+          <p class="price" style="margin-top: 20px">ทดลองฟรี 30 วัน</p>
+          <p>
+            หลังจากนั้น 199 บาท/เดือน หรือ 1,990 บาท/ปี ค่าข้อความ LINE เป็นของ OA ร้านตามโควตาของ
+            LINE
+          </p>
+          <div class="btns">
+            <a
+              class="btn"
+              data-link="signup"
+              href="https://line.me/R/ti/p/@REPLACE_SIGNUP_OA"
+              rel="noopener"
+              >สมัครผ่าน LINE</a
+            >
+          </div>
+        </div>
+      </section>
+
+      <section id="who" class="demo">
+        <div class="wrap">
+          <h2>ใครทำ</h2>
+          <p>
+            [ใส่รูปและชื่อผู้ก่อตั้งที่นี่] ผู้พัฒนาคนเดียวที่ดูแลระบบเอง ตอบข้อความภายในวันเดียวกัน
+          </p>
+          <p class="note">
+            เก็บข้อมูลลูกค้าเท่าที่จำเป็นต่อการจอง คือ LINE user id ชื่อที่แสดง และเบอร์โทร
+            (ไม่บังคับ) ร้านเป็นเจ้าของข้อมูลลูกค้าของร้าน
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p>คิวไม่ซ้อน - ระบบจองคิวใน LINE สำหรับร้านเล็ก</p>
+      </div>
+    </footer>
+  </body>
+</html>

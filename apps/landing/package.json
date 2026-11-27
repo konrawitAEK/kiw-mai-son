@@ -1,0 +1,12 @@
+{
+  "name": "@kms/landing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "qr": "node scripts/make-qr.mjs"
+  },
+  "devDependencies": {
+    "qrcode": "1.5.4"
+  }
+}
