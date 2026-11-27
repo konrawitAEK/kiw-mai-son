@@ -11,7 +11,8 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "typecheck": "pnpm -r exec tsc --noEmit"
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "rich-menu": "node packages/api/src/rich-menu.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.6.1",
