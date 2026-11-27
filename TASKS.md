@@ -34,7 +34,7 @@ Timeline reference: weekdays 21:00–23:00 review, weekends for HUMAN tasks. Tar
 
 ## Week 3 — messages and owner admin
 
-- [ ] **T6** LINE webhook function: verify signature, route by destination (shop), reply with booking confirmation (reply API, not push).
+- [x] **T6** LINE webhook function: verify signature, route by destination (shop), reply with booking confirmation (reply API, not push).
   - needs: T4
   - Done when: signature verification tests (valid/invalid) and message text snapshot tests pass.
 - [ ] **T7** Reminder job (pg_cron → function): push "นัดพรุ่งนี้" message 24h before, with buttons ยืนยันมา / ขอเลื่อน; never send twice (reminders_log); shop can turn reminders off.
@@ -88,3 +88,4 @@ Timeline reference: weekdays 21:00–23:00 review, weekends for HUMAN tasks. Tar
 - 2026-11-28 · T3 · PR (branch ai/t3-db-migration) · `pnpm lint && pnpm typecheck && pnpm test` pass (34 tests; PGlite + btree_gist works, so no SQL-only test needed). Human: apply `supabase/migrations/20261128000000_core_tables.sql` on the real Supabase project once (H3) and check the table list; confirm 'active booking' = any status except cancelled; RLS is enabled with no policies (Edge Functions use service role).
 - 2026-11-28 · T4 · PR (branch ai/t4-booking-api) · `pnpm lint && pnpm typecheck && pnpm test` pass (51 tests, 17 new in packages/api). Human: Edge Function entry `supabase/functions/api` (Deno + supabase-js wiring) is NOT tested locally; at H5 deploy with `supabase functions deploy api --no-verify-jwt`, set secret LINE_LOGIN_CHANNEL_ID, and check the Deno import resolution + a real LIFF token.
 - 2026-11-28 · T5 · PR (branch ai/t5-liff-booking-page) · `pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @kms/liff build` pass (67 tests, 16 new in apps/liff). Human: LIFF init/ID-token flow and real API calls are NOT tested locally (screenshots use a dev mock `?mock=1`); check on a real phone at H5 with VITE_LIFF_ID, VITE_API_BASE_URL and `?shop=<shopId>` in the LIFF URL.
+- 2026-11-28 · T6 · PR (branch ai/t6-line-webhook) · `pnpm lint && pnpm typecheck && pnpm test` pass (83 tests, 16 new). Human: Edge Function `supabase/functions/line-webhook` (Deno, channel decrypt) is NOT tested locally; ASSUMES AES-256-GCM `iv||ciphertext` in the `*_encrypted` columns keyed by CHANNEL_TOKEN_ENC_KEY (T13 must write that way); set `line_channels.destination` to each bot userId; LIFF must send text `ยืนยันการจอง <bookingId>` via liff.sendMessages after booking (not yet in T5 page). Check on a real phone at H5/H6.
