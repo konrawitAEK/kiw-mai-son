@@ -1,0 +1,86 @@
+# TASKS — คิวไม่ซ้อน
+
+Rules: see `CLAUDE.md`. The AI does one unchecked task per run, in order, skipping `[HUMAN]` tasks and tasks whose `needs:` are not done.
+`[HUMAN]` = only the founder can do it (accounts, secrets, real phones, real shops, decisions).
+Timeline reference: weekdays 21:00–23:00 review, weekends for HUMAN tasks. Target: demo by end of week 2–3.
+
+---
+
+## Week 1 — checks and foundations
+
+- [ ] **H1 [HUMAN]** Talk to 5 real shops (questions in docs/PROJECT-REPORT.md §9). Write results in `docs/interviews.md`. Go/no-go: ≥3 of 5 have real double-booking/no-show pain.
+- [ ] **H2 [HUMAN]** Check current LINE OA free message quota in Thailand, Messaging API + LIFF terms, Supabase free tier limits. Write findings in `docs/platform-checks.md`. If anything breaks the plan, edit the tasks below.
+- [ ] **H3 [HUMAN]** Create: LINE Developers account, a demo LINE OA "ร้านเดโม คิวไม่ซ้อน" with Messaging API channel, a LIFF app; a Supabase project. Put names (not values) in `.env.example` and values in Supabase secrets / GitHub repo secrets.
+- [ ] **H4 [HUMAN]** Check employment contract allows a side business.
+
+- [x] **T1** Repo skeleton: pnpm workspace with `apps/liff`, `packages/core`, `supabase/`; TypeScript strict; vitest; ESLint + Prettier; `.env.example`; GitHub Actions running lint + tests on PRs.
+  - Done when: `pnpm install && pnpm lint && pnpm test` pass on a clean clone; CI green on the PR.
+- [ ] **T2** `packages/core`: types for Shop, Staff, Service (duration min, price, deposit), WorkingHours, TimeOff, Booking. Function `availableSlots(day, service, staff, workingHours, timeOff, bookings, stepMinutes)` returning free start times in Asia/Bangkok.
+  - needs: T1
+  - Done when: ≥12 unit tests incl. overlapping bookings, time off, service longer than remaining time, "any staff", day boundaries, DST-free Bangkok time.
+- [ ] **T3** DB migration: tables shops, line_channels (token encrypted), staff, services, working_hours, time_off, customers, bookings (tstzrange `during`, status, channel `line|owner`, deposit_status), reminders_log, subscriptions. Exclusion constraint: no overlapping active bookings per staff (`btree_gist`).
+  - needs: T1
+  - Done when: migration applies on a fresh DB; a test inserts two overlapping bookings for the same staff and the second fails; cancelled bookings don't block. (Use PGlite if `btree_gist` works there; otherwise write the test as SQL in `supabase/tests/` and add a `[HUMAN]` note to run it on Supabase.)
+
+## Week 2 — booking flow
+
+- [ ] **T4** Edge Function API: list services/staff for a shop, get available slots (uses core), create booking (relies on DB constraint; returns a clear Thai error on conflict), cancel booking. Auth: verify LIFF ID token for customers.
+  - needs: T2, T3
+  - Done when: handler unit tests with mocked DB pass; conflict returns 409 with Thai message.
+- [ ] **T5** LIFF customer page: choose service → staff (or any) → date → time → confirm. Mobile-first, Thai text, shows only free slots, handles conflict ("ช่วงเวลานี้เพิ่งถูกจอง กรุณาเลือกใหม่").
+  - needs: T4
+  - Done when: component tests pass; `pnpm --filter liff build` passes; PR has screenshots from a mobile-sized browser.
+- [ ] **H5 [HUMAN]** Deploy LIFF + functions to the demo OA; book on 2 real phones at the same time; confirm the second one fails cleanly.
+
+## Week 3 — messages and owner admin
+
+- [ ] **T6** LINE webhook function: verify signature, route by destination (shop), reply with booking confirmation (reply API, not push).
+  - needs: T4
+  - Done when: signature verification tests (valid/invalid) and message text snapshot tests pass.
+- [ ] **T7** Reminder job (pg_cron → function): push "นัดพรุ่งนี้" message 24h before, with buttons ยืนยันมา / ขอเลื่อน; never send twice (reminders_log); shop can turn reminders off.
+  - needs: T6
+  - Done when: tests cover once-only sending, opt-out, and cancelled bookings.
+- [ ] **T8** LIFF owner admin: today/week schedule by staff; add booking for phone customer (name, phone, service, time) in one screen; block time; cancel. Only shop owners (by LINE user id) can open it.
+  - needs: T4
+  - Done when: component tests + access-control test pass; build passes; PR has screenshots.
+- [ ] **T9** Rich menu setup script for a shop channel ("จองคิว", "นัดของฉัน", "ติดต่อร้าน").
+  - needs: T6
+  - Done when: script has a dry-run mode tested in CI.
+- [ ] **H6 [HUMAN]** Full run on the demo OA with real phones: book → confirm message → reminder (set a booking 24h+5min ahead or temporary test window) → owner adds a phone booking → block time.
+
+## Week 4 — DEMO DONE
+
+- [ ] **T10** Landing page (static, Thai): what it does, "ลองจองร้านเดโม" (QR + link to demo OA), "ใครทำ" section placeholder, sign-up via LINE OA link. Lighthouse mobile ≥90.
+  - needs: T5
+- [ ] **H7 [HUMAN]** Record the 60-second demo clip, add your real photo/name to "ใครทำ", publish the landing page. ✅ Demo milestone.
+
+## Weeks 5–6 — deposit and multi-shop
+
+- [ ] **T11** `packages/core`: PromptPay QR payload (EMVCo, phone or national/tax ID, amount, CRC16) with tests against known valid payloads.
+  - Done when: ≥8 tests incl. CRC and amount formatting.
+- [ ] **T12** Deposit flow: service has optional deposit; after booking show the shop's PromptPay QR + amount; customer uploads slip image; owner confirms/rejects in admin; unpaid deposit after N hours → booking auto-cancelled (configurable, default off).
+  - needs: T11, T8
+- [ ] **T13** Shop onboarding page: owner pastes channel id/secret/token (validated against LINE API, stored encrypted), sets services/staff/hours, runs rich menu setup, makes a test booking. Target: whole setup < 30 min on a video call.
+  - needs: T9, T8
+- [ ] **T14** Privacy notice + shop data-processing terms pages (Thai), linked from LIFF and landing page; data export (CSV) and delete-shop for owners.
+  - needs: T8
+- [ ] **T15** Monitoring: health-check endpoint + alert to the founder's LINE when functions error or reminders fail.
+  - needs: T7
+- [ ] **H8 [HUMAN]** Review T13/T14 for security (token handling, access control) before any real shop uses it.
+
+## Weeks 7–12 — pilots and launch (mostly HUMAN; AI tasks get added from pilot feedback)
+
+- [ ] **H9 [HUMAN]** Recruit 3–5 pilot shops (Facebook groups + demo clip), onboard on weekend calls.
+- [ ] **T16** Monthly stats per shop (bookings, via LINE vs owner, no-shows, deposits) + day-25 summary message with payment link.
+  - needs: T12
+- [ ] **T17** Billing: subscription status, trial end, PromptPay payment link/QR for 199 or 1,990, mark paid, reminders before trial ends.
+  - needs: T16
+- [ ] **T18** Referral: shop referral code, both get 1 free month.
+  - needs: T17
+- [ ] **H10 [HUMAN]** Collect real results + permission for testimonials; rerun the simulated buyer panel on Haiku with real objections; open "30 ร้านแรก".
+
+---
+
+## Log
+<!-- One line per finished task: YYYY-MM-DD · task · PR link · what the human must check -->
+- 2026-11-27 · T1 · (scaffolded locally before GitHub repo existed) · `pnpm install && pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @kms/liff build` all pass. Human: create the private GitHub repo, push this as the initial commit, confirm CI goes green, then let the cloud routine start at T2.
