@@ -22,3 +22,7 @@ export {
   REMINDER_KIND,
 } from "./reminders.js";
 export type { ReminderCandidate, ReminderDeps, ReminderResult, LineMessage } from "./reminders.js";
+export { createLineChannelValidator } from "./line-channel.js";
+export type { ChannelCheck, ChannelInput, ChannelValidator } from "./line-channel.js";
+export { encryptSecret, decryptSecret } from "./secret-box.js";
+export type { OnboardingDb, OnboardingDeps, HoursWindow, LineChannelRow } from "./types.js";
