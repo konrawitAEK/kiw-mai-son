@@ -24,7 +24,7 @@ Timeline reference: weekdays 21:00–23:00 review, weekends for HUMAN tasks. Tar
 
 ## Week 2 — booking flow
 
-- [ ] **T4** Edge Function API: list services/staff for a shop, get available slots (uses core), create booking (relies on DB constraint; returns a clear Thai error on conflict), cancel booking. Auth: verify LIFF ID token for customers.
+- [x] **T4** Edge Function API: list services/staff for a shop, get available slots (uses core), create booking (relies on DB constraint; returns a clear Thai error on conflict), cancel booking. Auth: verify LIFF ID token for customers.
   - needs: T2, T3
   - Done when: handler unit tests with mocked DB pass; conflict returns 409 with Thai message.
 - [ ] **T5** LIFF customer page: choose service → staff (or any) → date → time → confirm. Mobile-first, Thai text, shows only free slots, handles conflict ("ช่วงเวลานี้เพิ่งถูกจอง กรุณาเลือกใหม่").
@@ -86,3 +86,4 @@ Timeline reference: weekdays 21:00–23:00 review, weekends for HUMAN tasks. Tar
 - 2026-11-27 · T1 · (scaffolded locally before GitHub repo existed) · `pnpm install && pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @kms/liff build` all pass. Human: create the private GitHub repo, push this as the initial commit, confirm CI goes green, then let the cloud routine start at T2.
 - 2026-11-28 · T2 · PR (see branch ai/t2-availability-slots) · `pnpm lint && pnpm typecheck && pnpm test` pass (26 tests). Human: review the `availableSlots` API shape (returns slots with `staffIds[]`; day as `YYYY-MM-DD`; weekday 0=Sun) before T4 builds on it.
 - 2026-11-28 · T3 · PR (branch ai/t3-db-migration) · `pnpm lint && pnpm typecheck && pnpm test` pass (34 tests; PGlite + btree_gist works, so no SQL-only test needed). Human: apply `supabase/migrations/20261128000000_core_tables.sql` on the real Supabase project once (H3) and check the table list; confirm 'active booking' = any status except cancelled; RLS is enabled with no policies (Edge Functions use service role).
+- 2026-11-28 · T4 · PR (branch ai/t4-booking-api) · `pnpm lint && pnpm typecheck && pnpm test` pass (51 tests, 17 new in packages/api). Human: Edge Function entry `supabase/functions/api` (Deno + supabase-js wiring) is NOT tested locally; at H5 deploy with `supabase functions deploy api --no-verify-jwt`, set secret LINE_LOGIN_CHANNEL_ID, and check the Deno import resolution + a real LIFF token.
