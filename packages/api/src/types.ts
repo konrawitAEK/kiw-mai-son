@@ -31,6 +31,46 @@ export interface InsertBookingInput {
   customerId: string;
   start: string;
   end: string;
+  /** Default "line". Owner-created bookings for phone customers use "owner". */
+  channel?: "line" | "owner";
+}
+
+/** One row of the owner's schedule view. */
+export interface ScheduleBooking {
+  id: string;
+  staffId: string;
+  serviceId: string;
+  serviceName: string;
+  customerName: string;
+  customerPhone: string | null;
+  start: string;
+  end: string;
+  status: Booking["status"];
+  channel: "line" | "owner";
+}
+
+export interface TimeOffRecord {
+  id: string;
+  /** null = whole shop. */
+  staffId: string | null;
+  start: string;
+  end: string;
+  reason: string | null;
+}
+
+export interface Schedule {
+  staff: Staff[];
+  /** Non-cancelled bookings overlapping the window, ordered by start. */
+  bookings: ScheduleBooking[];
+  timeOff: TimeOffRecord[];
+}
+
+export interface InsertTimeOffInput {
+  shopId: string;
+  staffId: string | null;
+  start: string;
+  end: string;
+  reason: string | null;
 }
 
 /** `conflict` = the DB exclusion constraint rejected an overlapping active booking. */
@@ -47,6 +87,13 @@ export interface Db {
   insertBooking(input: InsertBookingInput): Promise<InsertResult>;
   getBooking(bookingId: string): Promise<BookingRecord | null>;
   cancelBooking(bookingId: string): Promise<void>;
+  /** `shops.owner_line_user_id`, or null if the shop does not exist. */
+  getShopOwner(shopId: string): Promise<string | null>;
+  /** Owner admin: phone-only customer (no LINE id). */
+  createPhoneCustomer(shopId: string, name: string, phone: string | null): Promise<string>;
+  /** Owner admin: active staff, non-cancelled bookings and time off overlapping [fromIso, toIso). */
+  listSchedule(shopId: string, fromIso: string, toIso: string): Promise<Schedule>;
+  insertTimeOff(input: InsertTimeOffInput): Promise<TimeOffRecord>;
 }
 
 export interface Deps {
