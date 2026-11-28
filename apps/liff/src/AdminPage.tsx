@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Service } from "@kms/core";
 import { ApiError, GENERIC_ERROR } from "./api.js";
-import type { AdminApi, AdminBooking, AdminSchedule, AdminSettings } from "./admin-api.js";
+import type {
+  AdminApi,
+  AdminBooking,
+  AdminSchedule,
+  AdminSettings,
+  ExportKind,
+} from "./admin-api.js";
+import { LegalLinks } from "./LegalPage.js";
 import { dayLabel, priceLabel, timeLabel, todayBangkok } from "./format.js";
 
 type View = "today" | "week";
-type Mode = "schedule" | "add" | "block" | "settings";
+type Mode = "schedule" | "add" | "block" | "settings" | "privacy";
 
 interface Props {
   api: AdminApi;
@@ -24,6 +31,7 @@ export function AdminPage({ api, now = Date.now }: Props) {
   const [forbidden, setForbidden] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleted, setDeleted] = useState(false);
   const [slip, setSlip] = useState<{ id: string; src: string | null; empty: boolean } | null>(null);
 
   const today = todayBangkok(now());
@@ -86,6 +94,20 @@ export function AdminPage({ api, now = Date.now }: Props) {
     }
   }
 
+  if (deleted) {
+    return (
+      <main className="page">
+        <header className="top">
+          <h1>คิวไม่ซ้อน · เจ้าของร้าน</h1>
+          <h2>ลบร้านเรียบร้อยแล้ว</h2>
+        </header>
+        <div role="status" className="alert ok">
+          ข้อมูลร้านและข้อมูลลูกค้าทั้งหมดถูกลบออกจากระบบแล้ว
+        </div>
+      </main>
+    );
+  }
+
   if (forbidden) {
     return (
       <main className="page">
@@ -111,7 +133,9 @@ export function AdminPage({ api, now = Date.now }: Props) {
               ? "บล็อกเวลา"
               : mode === "settings"
                 ? "ตั้งค่ามัดจำ"
-                : "ตารางคิว"}
+                : mode === "privacy"
+                  ? "ข้อมูลและความเป็นส่วนตัว"
+                  : "ตารางคิว"}
         </h2>
       </header>
 
@@ -145,6 +169,9 @@ export function AdminPage({ api, now = Date.now }: Props) {
             </button>
             <button type="button" className="secondary" onClick={() => setMode("settings")}>
               ตั้งค่ามัดจำ
+            </button>
+            <button type="button" className="secondary" onClick={() => setMode("privacy")}>
+              ข้อมูลและความเป็นส่วนตัว
             </button>
           </div>
 
@@ -216,6 +243,14 @@ export function AdminPage({ api, now = Date.now }: Props) {
         />
       )}
 
+      {mode === "privacy" && (
+        <PrivacyPanel
+          api={api}
+          onBack={() => setMode("schedule")}
+          onDeleted={() => setDeleted(true)}
+        />
+      )}
+
       {mode === "block" && schedule && (
         <BlockForm
           staff={schedule.staff}
@@ -236,6 +271,7 @@ export function AdminPage({ api, now = Date.now }: Props) {
           }
         />
       )}
+      <LegalLinks owner />
     </main>
   );
 }
@@ -649,5 +685,117 @@ function SettingsForm(props: {
         ย้อนกลับ
       </button>
     </form>
+  );
+}
+
+/** Triggers a browser download of CSV text (BOM already included by the server). */
+function saveCsv(filename: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function PrivacyPanel(props: { api: AdminApi; onBack: () => void; onDeleted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmName, setConfirmName] = useState("");
+  const [armed, setArmed] = useState(false);
+
+  async function download(kind: ExportKind) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const text = await props.api.exportCsv(kind);
+      saveCsv(`kiw-mai-son-${kind}.csv`, text);
+      setNotice("ดาวน์โหลดไฟล์แล้ว");
+    } catch (e) {
+      setError(msg(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(e: FormEvent) {
+    e.preventDefault();
+    if (busy || confirmName.trim() === "") return;
+    setBusy(true);
+    setError(null);
+    try {
+      await props.api.deleteShop(confirmName);
+      props.onDeleted();
+    } catch (err) {
+      setError(msg(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="form">
+      {notice && (
+        <div role="status" className="alert ok">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <div role="alert" className="alert error">
+          {error}
+        </div>
+      )}
+      <h3>ดาวน์โหลดข้อมูล (CSV)</h3>
+      <p className="muted">ไฟล์เปิดได้ใน Excel / Google Sheets</p>
+      <button
+        type="button"
+        className="secondary"
+        disabled={busy}
+        onClick={() => download("customers")}
+      >
+        ดาวน์โหลดรายชื่อลูกค้า
+      </button>
+      <button
+        type="button"
+        className="secondary"
+        disabled={busy}
+        onClick={() => download("bookings")}
+      >
+        ดาวน์โหลดรายการจองทั้งหมด
+      </button>
+
+      <h3>ลบร้านและข้อมูลทั้งหมด</h3>
+      <p className="muted">
+        จะลบร้าน บริการ ช่าง ลูกค้า การจอง สลิป และการเชื่อม LINE ออกจากระบบทันที กู้คืนไม่ได้
+        โปรดดาวน์โหลดข้อมูลก่อน LINE OA ของร้านยังเป็นของร้านตามเดิม
+      </p>
+      {!armed ? (
+        <button type="button" className="danger" onClick={() => setArmed(true)}>
+          ต้องการลบร้าน
+        </button>
+      ) : (
+        <form onSubmit={remove} className="form">
+          <label>
+            พิมพ์ชื่อร้านให้ตรงเพื่อยืนยันการลบ
+            <input
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <button type="submit" className="danger" disabled={busy || confirmName.trim() === ""}>
+            {busy ? "กำลังลบ..." : "ยืนยันลบร้านถาวร"}
+          </button>
+        </form>
+      )}
+
+      <button type="button" className="link" onClick={props.onBack}>
+        ย้อนกลับ
+      </button>
+    </section>
   );
 }

@@ -23,6 +23,8 @@ export { MSG };
  *   GET  /shops/:shopId/admin/bookings/:id/slip
  *   POST /shops/:shopId/admin/bookings/:id/deposit { decision: "confirm"|"reject" }
  *   GET|POST /shops/:shopId/admin/settings    { promptPayId|null, depositTimeoutHours|null }
+ *   GET  /shops/:shopId/admin/export?kind=customers|bookings   (CSV download)
+ *   POST /shops/:shopId/admin/delete          { confirmName }   (deletes the shop and all its data)
  */
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const step = deps.stepMinutes ?? 30;

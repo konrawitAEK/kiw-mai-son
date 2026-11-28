@@ -11,6 +11,8 @@ export type {
   InsertResult,
   InsertTimeOffInput,
   Schedule,
+  ExportBooking,
+  ExportCustomer,
   ScheduleBooking,
   TimeOffRecord,
 } from "./types.js";
@@ -25,5 +27,6 @@ export {
   REMINDER_KIND,
 } from "./reminders.js";
 export type { ReminderCandidate, ReminderDeps, ReminderResult, LineMessage } from "./reminders.js";
+export { createDataPrivacyRoutes } from "./data-privacy.js";
 export { createDepositRoutes, depositInfo } from "./deposit.js";
 export type { DepositInfo } from "./deposit.js";
