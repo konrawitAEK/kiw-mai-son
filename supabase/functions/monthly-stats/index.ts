@@ -2,7 +2,8 @@
 // Thin wiring only: logic and tests live in packages/api (monthly-stats.ts). Deploy with:
 //   supabase functions deploy monthly-stats --no-verify-jwt
 // Secrets (names only; see .env.example): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-// CHANNEL_TOKEN_ENC_KEY, MONTHLY_STATS_CRON_SECRET, BILLING_PAYMENT_URL (optional until T17).
+// CHANNEL_TOKEN_ENC_KEY, MONTHLY_STATS_CRON_SECRET, LIFF_ID (per-shop billing link, T17),
+// BILLING_PAYMENT_URL (optional fallback when LIFF_ID is unset).
 // NOT tested locally (needs a real database + LINE).
 import { createClient } from "npm:@supabase/supabase-js@2.47.10";
 import { createMonthlyStatsHandler } from "../../../packages/api/src/monthly-stats.ts";
@@ -105,8 +106,13 @@ Deno.serve(
           if (error) throw new Error(error.message);
           return data ? await decrypt(data.channel_access_token_encrypted) : null;
         },
-        // One shared link until T17 adds per-shop PromptPay billing links.
-        getPaymentLink: async () => Deno.env.get("BILLING_PAYMENT_URL") || null,
+        // T17: link to the shop's own billing page (PromptPay QR); falls back to one shared URL if LIFF_ID is unset.
+        getPaymentLink: async (shopId) => {
+          const liffId = Deno.env.get("LIFF_ID");
+          return liffId
+            ? `https://liff.line.me/${liffId}?page=admin&shop=${encodeURIComponent(shopId)}`
+            : Deno.env.get("BILLING_PAYMENT_URL") || null;
+        },
         push: createLinePush(),
       },
       Deno.env.get("MONTHLY_STATS_CRON_SECRET") ?? "",

@@ -8,11 +8,12 @@ import type {
   AdminSettings,
   ExportKind,
 } from "./admin-api.js";
+import { BillingPanel } from "./BillingPanel.js";
 import { LegalLinks } from "./LegalPage.js";
 import { dayLabel, priceLabel, timeLabel, todayBangkok } from "./format.js";
 
 type View = "today" | "week";
-type Mode = "schedule" | "add" | "block" | "settings" | "privacy";
+type Mode = "schedule" | "add" | "block" | "settings" | "privacy" | "billing";
 
 interface Props {
   api: AdminApi;
@@ -135,7 +136,9 @@ export function AdminPage({ api, now = Date.now }: Props) {
                 ? "ตั้งค่ามัดจำ"
                 : mode === "privacy"
                   ? "ข้อมูลและความเป็นส่วนตัว"
-                  : "ตารางคิว"}
+                  : mode === "billing"
+                    ? "ค่าบริการ"
+                    : "ตารางคิว"}
         </h2>
       </header>
 
@@ -169,6 +172,9 @@ export function AdminPage({ api, now = Date.now }: Props) {
             </button>
             <button type="button" className="secondary" onClick={() => setMode("settings")}>
               ตั้งค่ามัดจำ
+            </button>
+            <button type="button" className="secondary" onClick={() => setMode("billing")}>
+              ค่าบริการ
             </button>
             <button type="button" className="secondary" onClick={() => setMode("privacy")}>
               ข้อมูลและความเป็นส่วนตัว
@@ -242,6 +248,8 @@ export function AdminPage({ api, now = Date.now }: Props) {
           onSave={(v) => run(() => api.saveSettings(v), "บันทึกการตั้งค่าแล้ว")}
         />
       )}
+
+      {mode === "billing" && <BillingPanel api={api} onBack={() => setMode("schedule")} />}
 
       {mode === "privacy" && (
         <PrivacyPanel

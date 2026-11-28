@@ -1,5 +1,6 @@
 import { availableSlots, bangkokDayStart, toBangkokIso } from "@kms/core";
 import { createAdminRoutes } from "./admin.js";
+import { createBillingRoutes } from "./billing.js";
 import { createShopRoute } from "./onboarding.js";
 import { createDepositRoutes, depositInfo } from "./deposit.js";
 import { CORS, DAY_MS, err, json, MIN_MS, MSG, UUID } from "./http.js";
@@ -32,6 +33,8 @@ export { MSG };
  *   GET  /shops/:shopId/admin/bookings/:id/slip
  *   POST /shops/:shopId/admin/bookings/:id/deposit { decision: "confirm"|"reject" }
  *   GET|POST /shops/:shopId/admin/settings    { promptPayId|null, depositTimeoutHours|null }
+ *   GET  /shops/:shopId/admin/billing         (T17, only when deps.billing is set: status, trial end, PromptPay QR payloads 199 / 1,990)
+ *   POST /billing/mark-paid                   { shopId, plan: "monthly"|"yearly", note? }   (T17, founder LINE user only)
  *   GET  /shops/:shopId/admin/export?kind=customers|bookings   (CSV download)
  *   POST /shops/:shopId/admin/delete          { confirmName }   (deletes the shop and all its data)
  */
@@ -82,6 +85,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const admin = createAdminRoutes(deps);
   const createShop = deps.onboarding ? createShopRoute(deps.onboarding, deps) : null;
   const deposits = createDepositRoutes(deps);
+  const billing = deps.billing ? createBillingRoutes(deps.billing) : null;
 
   async function route(req: Request): Promise<Response> {
     const url = new URL(req.url);
@@ -93,6 +97,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
     if (createShop && method === "POST" && path === "/onboarding/shops") return createShop(req);
+
+    if (billing && method === "POST" && path === "/billing/mark-paid") {
+      return billing.markPaid(req, await authenticate(req));
+    }
 
     if (parts[0] === "shops" && parts[1] && UUID.test(parts[1]) && parts[2] === "admin") {
       return admin(req, parts[1], parts.slice(3), url);

@@ -3,7 +3,8 @@
 // verification off (auth is the LIFF ID token, checked in the handler):
 //   supabase functions deploy api --no-verify-jwt
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, LINE_LOGIN_CHANNEL_ID, and for onboarding (T13):
-// CHANNEL_TOKEN_ENC_KEY, LIFF_ID, optional ONBOARDING_INVITE_CODE (names only; see .env.example).
+// CHANNEL_TOKEN_ENC_KEY, LIFF_ID, optional ONBOARDING_INVITE_CODE;
+// for billing (T17): FOUNDER_LINE_USER_ID, FOUNDER_PROMPTPAY_ID (names only; see .env.example).
 // Bundling note: imports below use relative paths into packages/ so `supabase functions deploy` can bundle them.
 import { createClient } from "npm:@supabase/supabase-js@2.47.10";
 import { createHandler } from "../../../packages/api/src/handler.ts";
@@ -12,6 +13,7 @@ import { createLineChannelValidator } from "../../../packages/api/src/line-chann
 import { createSupabaseOnboardingDb } from "./onboarding-db.ts";
 import { createFounderAlerter, withErrorAlert } from "../../../packages/api/src/monitoring.ts";
 import { createSupabaseDb } from "./supabase-db.ts";
+import { createSupabaseBillingDb } from "./billing-db.ts";
 
 declare const Deno: {
   env: { get(k: string): string | undefined };
@@ -41,6 +43,15 @@ Deno.serve(
             encryptionKey: Deno.env.get("CHANNEL_TOKEN_ENC_KEY")!,
             liffId: Deno.env.get("LIFF_ID") ?? "",
             inviteCode: Deno.env.get("ONBOARDING_INVITE_CODE") || undefined,
+          }
+        : undefined,
+      // Billing (T17) is only switched on when the founder LINE user id is set (only they may mark payments).
+      billing: Deno.env.get("FOUNDER_LINE_USER_ID")
+        ? {
+            db: createSupabaseBillingDb(supabase),
+            founderPromptPayId: Deno.env.get("FOUNDER_PROMPTPAY_ID") || null,
+            founderLineUserId: Deno.env.get("FOUNDER_LINE_USER_ID")!,
+            now: () => new Date(),
           }
         : undefined,
       verifyIdToken: createLineVerifier(Deno.env.get("LINE_LOGIN_CHANNEL_ID") ?? ""),
