@@ -2,6 +2,7 @@ import {
   BOOKING_NOT_FOUND_TEXT,
   REMINDER_CONFIRM_REPLY,
   REMINDER_RESCHEDULE_REPLY,
+  rescheduleLinkReply,
   bookingConfirmationText,
   parseReminderPostback,
 } from "@kms/core";
@@ -17,6 +18,8 @@ export interface ChannelInfo {
 
 export interface WebhookDeps {
   db: Pick<Db, "getBooking" | "getService" | "listStaff">;
+  /** LIFF app id; when set, "ขอเลื่อน" replies with a link that opens the reschedule picker (T22). */
+  liffId?: string;
   /** Route by the webhook `destination` (LINE bot user id) to a shop's channel; null if unknown. */
   getChannelByDestination(destination: string): Promise<ChannelInfo | null>;
   /** Reply API (never push). */
@@ -78,6 +81,12 @@ function res(status: number, body: string): Response {
  * (so LINE does not retry-storm); per-event failures are swallowed.
  */
 export function createWebhookHandler(deps: WebhookDeps): (req: Request) => Promise<Response> {
+  function rescheduleReplyFor(shopId: string, bookingId: string): string {
+    if (!deps.liffId) return REMINDER_RESCHEDULE_REPLY;
+    const q = new URLSearchParams({ shop: shopId, page: "my-bookings", reschedule: bookingId });
+    return rescheduleLinkReply(`https://liff.line.me/${deps.liffId}?${q.toString()}`);
+  }
+
   async function handlePostback(channel: ChannelInfo, ev: LineEvent) {
     const pb = parseReminderPostback(ev.postback?.data ?? "");
     if (!pb || !ev.replyToken) return;
@@ -92,7 +101,7 @@ export function createWebhookHandler(deps: WebhookDeps): (req: Request) => Promi
         ? BOOKING_NOT_FOUND_TEXT
         : pb.action === "confirm"
           ? REMINDER_CONFIRM_REPLY
-          : REMINDER_RESCHEDULE_REPLY;
+          : rescheduleReplyFor(channel.shopId, booking.id);
     await deps.reply(channel.channelAccessToken, ev.replyToken, [{ type: "text", text }]);
   }
 

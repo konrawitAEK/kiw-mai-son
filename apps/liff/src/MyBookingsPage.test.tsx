@@ -9,6 +9,7 @@ afterEach(cleanup);
 
 const b1: MyBooking = {
   id: "b1",
+  serviceId: "s1",
   serviceName: "ตัดผมชาย",
   staffName: "พี่แอน",
   start: "2026-12-03T14:00:00+07:00",
@@ -20,6 +21,7 @@ const b1: MyBooking = {
 const b2: MyBooking = {
   ...b1,
   id: "b2",
+  serviceId: "s2",
   serviceName: "ทำสีผม",
   staffName: "พี่บอย",
   start: "2026-12-04T10:00:00+07:00",
@@ -93,6 +95,100 @@ describe("MyBookingsPage", () => {
     await user.click(within(first).getByRole("button", { name: "ยืนยันยกเลิกนัดนี้" }));
     expect((await screen.findByRole("alert")).textContent).toBe("ลองใหม่");
     expect(screen.getByRole("listitem", { name: "นัด ตัดผมชาย" })).toBeTruthy();
+  });
+});
+
+const NOW = () => Date.parse("2026-12-02T09:00:00+07:00");
+const slot = (t: string) => ({
+  start: `2026-12-03T${t}:00+07:00`,
+  end: `2026-12-03T${t}:30+07:00`,
+  staffIds: ["a"],
+});
+
+describe("MyBookingsPage reschedule (T22)", () => {
+  it("picks another free slot and moves the booking", async () => {
+    const user = userEvent.setup();
+    const moved: MyBooking = {
+      ...b1,
+      start: "2026-12-03T15:00:00+07:00",
+      end: "2026-12-03T15:30:00+07:00",
+    };
+    const listMyBookings = vi
+      .fn()
+      .mockResolvedValueOnce([b1, b2])
+      .mockResolvedValueOnce([moved, b2]);
+    const api = fakeApi({
+      listMyBookings,
+      listSlots: vi.fn().mockResolvedValue([slot("14:30"), slot("15:00")]),
+      rescheduleBooking: vi.fn().mockResolvedValue({}),
+    });
+    render(<MyBookingsPage api={api} now={NOW} />);
+    const first = await screen.findByRole("listitem", { name: "นัด ตัดผมชาย" });
+    await user.click(within(first).getByRole("button", { name: "ขอเลื่อน" }));
+    await user.click(within(first).getByRole("button", { name: "พฤ. 3 ธ.ค." }));
+    expect(api.listSlots).toHaveBeenCalledWith("s1", "2026-12-03", null);
+    await user.click(await within(first).findByRole("button", { name: "15:00" }));
+
+    expect(api.rescheduleBooking).toHaveBeenCalledWith("b1", { start: slot("15:00").start });
+    expect((await screen.findByRole("status")).textContent).toContain("เลื่อนนัดเรียบร้อย");
+    const after = await screen.findByRole("listitem", { name: "นัด ตัดผมชาย" });
+    expect(within(after).getByText(/15:00 - 15:30/)).toBeTruthy();
+  });
+
+  it("on a 409 race shows the Thai conflict message and refreshes the slots", async () => {
+    const user = userEvent.setup();
+    const listSlots = vi
+      .fn()
+      .mockResolvedValueOnce([slot("15:00"), slot("15:30")])
+      .mockResolvedValueOnce([slot("15:30")]);
+    const api = fakeApi({
+      listSlots,
+      rescheduleBooking: vi
+        .fn()
+        .mockRejectedValue(new ApiError(409, "ช่วงเวลานี้เพิ่งถูกจอง กรุณาเลือกใหม่")),
+    });
+    render(<MyBookingsPage api={api} now={NOW} />);
+    const first = await screen.findByRole("listitem", { name: "นัด ตัดผมชาย" });
+    await user.click(within(first).getByRole("button", { name: "ขอเลื่อน" }));
+    await user.click(within(first).getByRole("button", { name: "พฤ. 3 ธ.ค." }));
+    await user.click(await within(first).findByRole("button", { name: "15:00" }));
+
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "ช่วงเวลานี้เพิ่งถูกจอง กรุณาเลือกใหม่",
+    );
+    await waitFor(() => expect(listSlots).toHaveBeenCalledTimes(2));
+    expect(await within(first).findByRole("button", { name: "15:30" })).toBeTruthy();
+    expect(within(first).queryByRole("button", { name: "15:00" })).toBeNull();
+    // booking is still listed at its old time
+    expect(within(first).getByText(/14:00 - 14:30/)).toBeTruthy();
+  });
+
+  it("opens the picker straight away from the reminder link (initialRescheduleId)", async () => {
+    render(<MyBookingsPage api={fakeApi()} now={NOW} initialRescheduleId="b2" />);
+    const second = await screen.findByRole("listitem", { name: "นัด ทำสีผม" });
+    expect(within(second).getByRole("region", { name: "เลือกเวลาใหม่" })).toBeTruthy();
+    const first = screen.getByRole("listitem", { name: "นัด ตัดผมชาย" });
+    expect(within(first).queryByRole("region", { name: "เลือกเวลาใหม่" })).toBeNull();
+  });
+});
+
+describe("createBookingApi reschedule", () => {
+  it("POSTs /bookings/:id/reschedule with the token and start", async () => {
+    const f = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ booking: { id: "b1" } }) });
+    const api = createBookingApi({
+      baseUrl: "https://api.test/",
+      shopId: "shop1",
+      getIdToken: () => "tok",
+      fetchFn: f as unknown as typeof fetch,
+    });
+    await api.rescheduleBooking("b1", { start: "2026-12-03T15:00:00+07:00" });
+    const [url, init] = f.mock.calls[0]!;
+    expect(url).toBe("https://api.test/bookings/b1/reschedule");
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer tok");
+    expect(JSON.parse(init.body)).toEqual({ start: "2026-12-03T15:00:00+07:00" });
   });
 });
 

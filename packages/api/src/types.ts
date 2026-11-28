@@ -62,6 +62,7 @@ export interface SlipImage {
 /** One row of the customer's "นัดของฉัน" list (T21). */
 export interface CustomerBooking {
   id: string;
+  serviceId: string;
   serviceName: string;
   staffName: string;
   /** +07:00 ISO. */
@@ -126,6 +127,14 @@ export interface Db {
   insertBooking(input: InsertBookingInput): Promise<InsertResult>;
   getBooking(bookingId: string): Promise<BookingRecord | null>;
   cancelBooking(bookingId: string): Promise<void>;
+  /**
+   * T22: moves a pending/confirmed booking to a new time (and staff member). The UPDATE goes through the same
+   * exclusion constraint as an insert, so an overlap returns `conflict` and the booking stays where it was.
+   */
+  rescheduleBooking(
+    bookingId: string,
+    to: { staffId: string; start: string; end: string },
+  ): Promise<InsertResult>;
   /** T21: the customer's own non-cancelled bookings in this shop that end after `fromIso`, ordered by start. */
   listCustomerBookings(
     shopId: string,

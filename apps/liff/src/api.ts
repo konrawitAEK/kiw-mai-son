@@ -26,6 +26,7 @@ export interface BookingResult {
 /** One upcoming booking of the signed-in customer (GET /shops/:id/my-bookings). */
 export interface MyBooking {
   id: string;
+  serviceId: string;
   serviceName: string;
   staffName: string;
   /** +07:00 ISO. */
@@ -67,6 +68,8 @@ export interface BookingApi {
   listMyBookings(): Promise<MyBooking[]>;
   /** T21: cancel the customer's own booking. */
   cancelBooking(bookingId: string): Promise<void>;
+  /** T22: move the customer's own booking to another free slot (ApiError 409 + Thai message if just taken). */
+  rescheduleBooking(bookingId: string, input: { start: string }): Promise<BookingResult>;
 }
 
 export const GENERIC_ERROR = "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
@@ -150,6 +153,22 @@ export function createBookingApi(opts: {
         { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} },
         true,
       );
+    },
+    async rescheduleBooking(bookingId, input) {
+      const token = opts.getIdToken();
+      const r = await call<{ booking: BookingResult }>(
+        `/bookings/${encodeURIComponent(bookingId)}/reschedule`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ start: input.start }),
+        },
+        true,
+      );
+      return r.booking;
     },
     async uploadSlip(bookingId, slip) {
       const token = opts.getIdToken();

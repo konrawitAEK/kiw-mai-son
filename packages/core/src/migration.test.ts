@@ -51,6 +51,41 @@ beforeAll(async () => {
   ).rows[0]!.id;
 });
 
+describe("rescheduling (T22): UPDATE goes through the same exclusion constraint", () => {
+  it("moves a booking to a free slot but rejects an overlap with 23P01", async () => {
+    const mine = (await book(staffA, range("2027-02-01 10:00", "2027-02-01 11:00"))).rows[0] as {
+      id: string;
+    };
+    await book(staffA, range("2027-02-01 13:00", "2027-02-01 14:00"));
+    // overlap with the other booking: refused, booking unchanged
+    await expect(
+      db.query(`update bookings set during = $2::tstzrange where id = $1`, [
+        mine.id,
+        range("2027-02-01 13:30", "2027-02-01 14:30"),
+      ]),
+    ).rejects.toMatchObject({ code: "23P01" });
+    // shifting within its own old time is fine (a row never conflicts with itself)
+    await db.query(`update bookings set during = $2::tstzrange where id = $1`, [
+      mine.id,
+      range("2027-02-01 10:30", "2027-02-01 11:30"),
+    ]);
+    // free slot, or free on another staff member
+    await db.query(`update bookings set during = $2::tstzrange where id = $1`, [
+      mine.id,
+      range("2027-02-01 15:00", "2027-02-01 16:00"),
+    ]);
+    await db.query(`update bookings set staff_id = $2, during = $3::tstzrange where id = $1`, [
+      mine.id,
+      staffB,
+      range("2027-02-01 13:00", "2027-02-01 14:00"),
+    ]);
+    const r = await db.query<{ staff_id: string }>(`select staff_id from bookings where id = $1`, [
+      mine.id,
+    ]);
+    expect(r.rows[0]!.staff_id).toBe(staffB);
+  });
+});
+
 describe("core tables migration", () => {
   it("creates all expected tables", async () => {
     const r = await db.query<{ table_name: string }>(

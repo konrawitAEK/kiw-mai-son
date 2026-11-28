@@ -47,6 +47,7 @@ function makeDb(over: Partial<Db> = {}): Db {
     ),
     getBooking: async (id) => (id === BK ? record : null),
     cancelBooking: vi.fn(async () => {}),
+    rescheduleBooking: vi.fn(async () => ({ ok: false as const, reason: "conflict" as const })),
     listCustomerBookings: async () => [],
     getShopOwner: async (id) => (id === SHOP ? "UOWNER" : null),
     createPhoneCustomer: vi.fn(async () => "cust-phone"),

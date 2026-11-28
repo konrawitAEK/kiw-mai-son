@@ -43,6 +43,7 @@ function fakeApi(over: Partial<BookingApi> = {}): BookingApi {
     uploadSlip: vi.fn(),
     listMyBookings: vi.fn(),
     cancelBooking: vi.fn(),
+    rescheduleBooking: vi.fn(),
     ...over,
   };
 }
