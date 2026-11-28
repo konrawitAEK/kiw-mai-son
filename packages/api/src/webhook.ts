@@ -128,6 +128,9 @@ export function createWebhookHandler(deps: WebhookDeps): (req: Request) => Promi
         staffName: staff.find((s) => s.id === booking.staffId)?.name ?? "-",
         start: booking.start,
         price: service?.price ?? 0,
+        depositDue: ["pending", "submitted", "rejected"].includes(booking.depositStatus)
+          ? booking.depositAmount
+          : 0,
       }),
     );
   }

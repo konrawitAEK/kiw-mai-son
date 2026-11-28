@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Service, Slot, Staff } from "@kms/core";
 import { ApiError, GENERIC_ERROR, type BookingApi, type BookingResult } from "./api.js";
+import { DepositPanel } from "./DepositPanel.js";
 import { dayLabel, priceLabel, timeLabel, upcomingDays } from "./format.js";
 
 type Step = "service" | "staff" | "date" | "time" | "confirm" | "done";
@@ -254,6 +255,12 @@ export function BookingPage({ api, now = Date.now, onClose }: Props) {
             </dd>
             <dt>ราคา</dt>
             <dd>{priceLabel(service.price)}</dd>
+            {service.deposit > 0 && (
+              <>
+                <dt>มัดจำ</dt>
+                <dd>{priceLabel(service.deposit)} (ชำระหลังกดยืนยัน)</dd>
+              </>
+            )}
           </dl>
           <button type="button" className="primary" disabled={busy} onClick={() => void confirm()}>
             {busy ? "กำลังจอง..." : "ยืนยันการจอง"}
@@ -263,7 +270,9 @@ export function BookingPage({ api, now = Date.now, onClose }: Props) {
 
       {step === "done" && result && service && (
         <section>
-          <p className="success">จองคิวเรียบร้อยแล้ว</p>
+          <p className="success">
+            {result.deposit ? "รับจองแล้ว กรุณาชำระมัดจำเพื่อยืนยันคิว" : "จองคิวเรียบร้อยแล้ว"}
+          </p>
           <dl className="summary">
             <dt>บริการ</dt>
             <dd>{service.name}</dd>
@@ -280,6 +289,9 @@ export function BookingPage({ api, now = Date.now, onClose }: Props) {
               {timeLabel(result.start)} - {timeLabel(result.end)} น.
             </dd>
           </dl>
+          {result.deposit && (
+            <DepositPanel api={api} bookingId={result.id} initial={result.deposit} />
+          )}
           {onClose && (
             <button type="button" className="primary" onClick={onClose}>
               ปิด

@@ -32,16 +32,24 @@ export interface BookingConfirmationInput {
   start: string;
   /** Price in THB. */
   price: number;
+  /** THB. When > 0 and not yet paid the text says the booking waits for the deposit. */
+  depositDue?: number;
 }
 
 export function bookingConfirmationText(i: BookingConfirmationInput): string {
+  const waiting = (i.depositDue ?? 0) > 0;
   return [
-    `จองคิวสำเร็จแล้ว ✅`,
+    waiting ? `รับจองแล้ว รอชำระมัดจำ ⏳` : `จองคิวสำเร็จแล้ว ✅`,
     `ร้าน: ${i.shopName}`,
     `บริการ: ${i.serviceName}`,
     `ช่าง: ${i.staffName}`,
     `เวลา: ${formatThaiDateTime(i.start)}`,
     `ราคา: ${i.price.toLocaleString("en-US")} บาท`,
+    ...(waiting
+      ? [
+          `มัดจำ: ${(i.depositDue as number).toLocaleString("en-US")} บาท (โอนผ่านพร้อมเพย์แล้วส่งสลิปในหน้าจอง คิวจะยืนยันเมื่อร้านตรวจสลิป)`,
+        ]
+      : []),
     `หากต้องการเลื่อนหรือยกเลิก กรุณาแจ้งร้านล่วงหน้า`,
   ].join("\n");
 }

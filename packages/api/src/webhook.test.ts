@@ -27,6 +27,8 @@ const record: BookingRecord = {
   start: "2026-12-07T10:00:00+07:00",
   end: "2026-12-07T10:30:00+07:00",
   status: "confirmed",
+  depositStatus: "none",
+  depositAmount: 0,
 };
 
 function setup(over: { booking?: BookingRecord | null; ch?: ChannelInfo | null } = {}) {

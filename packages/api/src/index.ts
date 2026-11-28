@@ -4,6 +4,9 @@ export type {
   Deps,
   BookingRecord,
   DayData,
+  DepositStatus,
+  ShopPayment,
+  SlipImage,
   InsertBookingInput,
   InsertResult,
   InsertTimeOffInput,
@@ -22,3 +25,5 @@ export {
   REMINDER_KIND,
 } from "./reminders.js";
 export type { ReminderCandidate, ReminderDeps, ReminderResult, LineMessage } from "./reminders.js";
+export { createDepositRoutes, depositInfo } from "./deposit.js";
+export type { DepositInfo } from "./deposit.js";

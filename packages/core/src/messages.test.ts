@@ -33,4 +33,31 @@ describe("messages", () => {
       หากต้องการเลื่อนหรือยกเลิก กรุณาแจ้งร้านล่วงหน้า"
     `);
   });
+
+  it("booking waiting for a deposit says so instead of 'success'", () => {
+    const text = bookingConfirmationText({
+      shopName: "ร้านเดโม",
+      serviceName: "ทำสีผม",
+      staffName: "เอ",
+      start: "2026-12-07T10:00:00+07:00",
+      price: 1800,
+      depositDue: 300,
+    });
+    expect(text).toContain("รอชำระมัดจำ");
+    expect(text).toContain("มัดจำ: 300 บาท");
+    expect(text).not.toContain("จองคิวสำเร็จแล้ว");
+  });
+
+  it("depositDue 0 keeps the normal confirmation", () => {
+    const text = bookingConfirmationText({
+      shopName: "ร้านเดโม",
+      serviceName: "ตัดผม",
+      staffName: "เอ",
+      start: "2026-12-07T10:00:00+07:00",
+      price: 300,
+      depositDue: 0,
+    });
+    expect(text).toContain("จองคิวสำเร็จแล้ว ✅");
+    expect(text).not.toContain("มัดจำ");
+  });
 });
