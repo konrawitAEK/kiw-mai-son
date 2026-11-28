@@ -20,6 +20,7 @@ const b64 = (d: Uint8Array) => Buffer.from(d).toString("base64");
 function fakeDb(opts: { deposit: number; payment?: ShopPayment }) {
   let booking: BookingRecord | null = null;
   const slips = new Map<string, SlipImage>();
+  const pushes: { id: string; kind: string }[] = [];
   let payment: ShopPayment = opts.payment ?? { promptPayId: PHONE, depositTimeoutHours: null };
   const service = {
     id: SVC,
@@ -81,12 +82,15 @@ function fakeDb(opts: { deposit: number; payment?: ShopPayment }) {
         booking.depositStatus = "paid";
       } else booking.depositStatus = "rejected";
     },
+    enqueueCustomerPush: async (id, kind) => {
+      pushes.push({ id, kind });
+    },
     getShopName: async () => "ร้านทดสอบ",
     exportCustomers: async () => [],
     exportBookings: async () => [],
     deleteShop: async () => {},
   };
-  return { db, state: () => booking, slips, payment: () => payment };
+  return { db, state: () => booking, slips, pushes, payment: () => payment };
 }
 
 function setup(opts: { deposit: number; payment?: ShopPayment }) {
@@ -222,6 +226,7 @@ describe("owner confirm / reject", () => {
     const r = await dep(s, "confirm");
     expect(r.status).toBe(200);
     expect(s.state()).toMatchObject({ status: "confirmed", depositStatus: "paid" });
+    expect(s.pushes).toEqual([{ id: BK, kind: "deposit_confirmed" }]);
   });
 
   it("reject: deposit rejected, booking stays pending, customer can upload again", async () => {
@@ -230,6 +235,7 @@ describe("owner confirm / reject", () => {
     await slip(s);
     expect((await dep(s, "reject")).status).toBe(200);
     expect(s.state()).toMatchObject({ status: "pending", depositStatus: "rejected" });
+    expect(s.pushes).toEqual([{ id: BK, kind: "deposit_rejected" }]);
     expect((await slip(s)).status).toBe(200);
     expect(s.state()?.depositStatus).toBe("submitted");
   });
@@ -273,6 +279,21 @@ describe("owner confirm / reject", () => {
     await dep(s, "confirm");
     expect((await dep(s, "reject")).status).toBe(409);
     expect((await dep(s, "confirm")).status).toBe(409);
+    expect(s.pushes).toEqual([{ id: BK, kind: "deposit_confirmed" }]); // only the first decision pushed
+  });
+
+  it("no push on a no-op: bad decision, wrong owner, or no deposit", async () => {
+    const s = setup({ deposit: 300 });
+    await book(s);
+    await slip(s);
+    await dep(s, "maybe");
+    await dep(s, "confirm", null);
+    await dep(s, "confirm", "cust");
+    expect(s.pushes).toEqual([]);
+    const none = setup({ deposit: 0 });
+    await book(none);
+    await dep(none, "confirm");
+    expect(none.pushes).toEqual([]);
   });
 
   it("no deposit to decide on a booking without one", async () => {

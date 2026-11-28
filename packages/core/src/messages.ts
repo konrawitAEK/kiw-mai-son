@@ -89,3 +89,43 @@ export function parseReminderPostback(
 export const REMINDER_CONFIRM_REPLY = "ขอบคุณที่ยืนยันค่ะ แล้วพบกันพรุ่งนี้ 🙏";
 export const REMINDER_RESCHEDULE_REPLY =
   "รับทราบค่ะ กรุณาแจ้งร้านเพื่อเลื่อนนัดโดยเร็วที่สุด ทางร้านจะช่วยหาเวลาใหม่ให้";
+
+export type DepositDecisionKind = "deposit_confirmed" | "deposit_rejected" | "deposit_cancelled";
+
+export interface DepositDecisionInput {
+  shopName: string;
+  serviceName: string;
+  start: string;
+  /** THB. */
+  amount: number;
+}
+
+/** LINE push text sent to the customer when the owner decides on a deposit slip, or an unpaid deposit auto-cancels. */
+export function depositDecisionText(kind: DepositDecisionKind, i: DepositDecisionInput): string {
+  const baht = `${i.amount.toLocaleString("en-US")} บาท`;
+  const what = [
+    `ร้าน: ${i.shopName}`,
+    `บริการ: ${i.serviceName}`,
+    `เวลา: ${formatThaiDateTime(i.start)}`,
+  ];
+  switch (kind) {
+    case "deposit_confirmed":
+      return [
+        `ร้านยืนยันการรับมัดจำ ${baht} แล้ว คิวของคุณยืนยันเรียบร้อย ✅`,
+        ...what,
+        `แล้วพบกันนะคะ`,
+      ].join("\n");
+    case "deposit_rejected":
+      return [
+        `ร้านตรวจสลิปมัดจำ ${baht} แล้วยังไม่ผ่าน ❗`,
+        ...what,
+        `กรุณาตรวจสอบยอดและส่งสลิปใหม่ในหน้าจอง หรือติดต่อร้านหากมีข้อสงสัย`,
+      ].join("\n");
+    case "deposit_cancelled":
+      return [
+        `คิวของคุณถูกยกเลิก เพราะยังไม่ได้รับมัดจำภายในเวลาที่ร้านกำหนด`,
+        ...what,
+        `หากยังต้องการใช้บริการ สามารถจองคิวใหม่ได้เลยค่ะ`,
+      ].join("\n");
+  }
+}

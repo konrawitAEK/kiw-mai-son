@@ -129,7 +129,9 @@ export async function runReminders(deps: ReminderDeps): Promise<ReminderResult> 
 }
 
 /** LINE push API. `fetchFn` injectable for tests. */
-export function createLinePush(fetchFn: typeof fetch = fetch): ReminderDeps["push"] {
+export function createLinePush<M = LineMessage>(
+  fetchFn: typeof fetch = fetch,
+): (accessToken: string, to: string, messages: M[]) => Promise<void> {
   return async (accessToken, to, messages) => {
     const r = await fetchFn("https://api.line.me/v2/bot/message/push", {
       method: "POST",

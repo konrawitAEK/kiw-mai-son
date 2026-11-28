@@ -128,6 +128,11 @@ export interface Db {
   getSlip(bookingId: string): Promise<SlipImage | null>;
   /** "paid" -> status confirmed + deposit paid; "rejected" -> deposit rejected (booking stays pending). */
   decideDeposit(bookingId: string, decision: "paid" | "rejected"): Promise<void>;
+  /** T20: queue a LINE push to the customer (sent by the `customer-pushes` job). Auto-cancel queues its own in SQL. */
+  enqueueCustomerPush(
+    bookingId: string,
+    kind: "deposit_confirmed" | "deposit_rejected",
+  ): Promise<void>;
   /** `shops.name`, or null if the shop does not exist. */
   getShopName(shopId: string): Promise<string | null>;
   /** Data export: all customers of the shop. */

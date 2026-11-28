@@ -3,6 +3,7 @@ import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import { beforeAll, describe, expect, it } from "vitest";
 import coreSql from "../../../supabase/migrations/20261128000000_core_tables.sql?raw";
 import depositSql from "../../../supabase/migrations/20261128020000_deposits.sql?raw";
+import pushSql from "../../../supabase/migrations/20261128060000_customer_pushes.sql?raw";
 
 let db: PGlite;
 let n = 0;
@@ -62,6 +63,7 @@ beforeAll(async () => {
   db = new PGlite({ extensions: { btree_gist } });
   await db.exec(coreSql);
   await db.exec(depositSql);
+  await db.exec(pushSql);
 });
 
 describe("deposits migration: schema", () => {
@@ -158,5 +160,58 @@ describe("cancel_unpaid_deposits", () => {
     await expect(ins()).rejects.toThrow(); // held while pending
     await sweep("2026-12-01T02:00:00Z");
     await expect(ins()).resolves.toBeTruthy();
+  });
+});
+
+describe("customer_pushes outbox (T20)", () => {
+  const queued = async (id: string) =>
+    (
+      await db.query<{ kind: string }>(`select kind from customer_pushes where booking_id=$1`, [id])
+    ).rows.map((r) => r.kind);
+
+  it("auto-cancel enqueues deposit_cancelled for each cancelled booking, and nothing otherwise", async () => {
+    const c = await newShop(24);
+    const unpaid = await book(c, "pending", "pending");
+    const submitted = await book(c, "pending", "submitted");
+    await sweep("2026-12-01T23:00:00Z"); // too early
+    expect(await queued(unpaid)).toEqual([]);
+    expect(await sweep("2026-12-02T00:00:00Z")).toContain(unpaid);
+    expect(await queued(unpaid)).toEqual(["deposit_cancelled"]);
+    expect(await queued(submitted)).toEqual([]);
+    await sweep("2026-12-03T00:00:00Z"); // already cancelled: no second push
+    expect(await queued(unpaid)).toEqual(["deposit_cancelled"]);
+  });
+
+  it("pending_customer_pushes returns unsent rows with the text inputs; mark_customer_push_sent clears them", async () => {
+    const c = await newShop(24);
+    const id = await book(c, "pending", "pending");
+    await db.query(`select enqueue_customer_push($1, 'deposit_rejected')`, [id]);
+    const rows = (
+      await db.query<{
+        id: string;
+        kind: string;
+        shop_name: string;
+        service_name: string;
+        deposit_amount: number;
+      }>(`select * from pending_customer_pushes(500) where booking_id = $1`, [id])
+    ).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      kind: "deposit_rejected",
+      shop_name: "ร้าน",
+      service_name: "ทำสี",
+      deposit_amount: 300,
+    });
+    await db.query(`select mark_customer_push_sent($1)`, [rows[0]!.id]);
+    expect(
+      (await db.query(`select * from pending_customer_pushes(500) where booking_id = $1`, [id]))
+        .rows,
+    ).toHaveLength(0);
+  });
+
+  it("rejects an unknown kind", async () => {
+    const c = await newShop(null);
+    const id = await book(c, "pending", "pending");
+    await expect(db.query(`select enqueue_customer_push($1, 'spam')`, [id])).rejects.toThrow();
   });
 });

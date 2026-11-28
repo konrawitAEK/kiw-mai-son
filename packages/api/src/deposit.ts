@@ -140,6 +140,10 @@ export function createDepositRoutes(deps: Deps) {
           : booking.depositStatus === "pending" || booking.depositStatus === "submitted");
       if (!allowed) return err(409, MSG.depositClosed);
       await deps.db.decideDeposit(booking.id, decision === "confirm" ? "paid" : "rejected");
+      await deps.db.enqueueCustomerPush(
+        booking.id,
+        decision === "confirm" ? "deposit_confirmed" : "deposit_rejected",
+      );
       const fresh = await deps.db.getBooking(booking.id);
       return json(200, { booking: fresh });
     },
