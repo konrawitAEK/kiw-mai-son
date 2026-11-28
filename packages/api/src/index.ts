@@ -38,3 +38,10 @@ export {
   reminderFailureText,
 } from "./monitoring.js";
 export type { Alert, AlerterConfig, HealthDeps, HealthReport } from "./monitoring.js";
+export { runMonthlySummaries, createMonthlyStatsHandler } from "./monthly-stats.js";
+export type {
+  MonthlyStatsDeps,
+  MonthlyStatsResult,
+  ShopMonthlyStats,
+  TextMessage,
+} from "./monthly-stats.js";
