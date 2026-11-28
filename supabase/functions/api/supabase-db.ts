@@ -404,7 +404,7 @@ export function createSupabaseDb(sb: Client): Db {
         await sb
           .from("bookings")
           .select(
-            "id, during, status, deposit_status, deposit_amount, services(name), staff(name), customers!inner(line_user_id)",
+            "id, service_id, during, status, deposit_status, deposit_amount, services(name), staff(name), customers!inner(line_user_id)",
           )
           .eq("shop_id", shopId)
           .eq("customers.line_user_id", lineUserId)
@@ -415,6 +415,7 @@ export function createSupabaseDb(sb: Client): Db {
         .map(
           (r): CustomerBooking => ({
             id: r.id,
+            serviceId: r.service_id,
             serviceName: r.services?.name ?? "",
             staffName: r.staff?.name ?? "",
             status: r.status,
@@ -424,6 +425,17 @@ export function createSupabaseDb(sb: Client): Db {
           }),
         )
         .sort((a, b) => a.start.localeCompare(b.start));
+    },
+    async rescheduleBooking(bookingId, to) {
+      const res = await sb
+        .from("bookings")
+        .update({ staff_id: to.staffId, during: `[${to.start},${to.end})` })
+        .eq("id", bookingId)
+        .in("status", ["pending", "confirmed"])
+        .select(BOOKING_COLS)
+        .single();
+      if (res.error?.code === "23P01") return { ok: false, reason: "conflict" };
+      return { ok: true, booking: toBooking(check(res)) };
     },
     async cancelBooking(bookingId) {
       check(await sb.from("bookings").update({ status: "cancelled" }).eq("id", bookingId));

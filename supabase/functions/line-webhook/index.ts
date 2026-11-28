@@ -35,6 +35,7 @@ Deno.serve(
         Deno.env.get("CHANNEL_TOKEN_ENC_KEY")!,
       ),
       reply: createLineReply(),
+      liffId: Deno.env.get("LIFF_ID"),
     }),
     alert,
   ),

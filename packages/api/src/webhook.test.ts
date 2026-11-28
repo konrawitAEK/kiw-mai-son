@@ -31,7 +31,9 @@ const record: BookingRecord = {
   depositAmount: 0,
 };
 
-function setup(over: { booking?: BookingRecord | null; ch?: ChannelInfo | null } = {}) {
+function setup(
+  over: { booking?: BookingRecord | null; ch?: ChannelInfo | null; liffId?: string } = {},
+) {
   const reply = vi.fn<WebhookDeps["reply"]>(async () => {});
   const getChannelByDestination = vi.fn(async (d: string) =>
     d === "Udest" ? (over.ch === undefined ? channel : over.ch) : null,
@@ -51,6 +53,7 @@ function setup(over: { booking?: BookingRecord | null; ch?: ChannelInfo | null }
     },
     getChannelByDestination,
     reply,
+    liffId: over.liffId,
   });
   return { handler, reply, getChannelByDestination };
 }
@@ -103,6 +106,21 @@ describe("reminder postbacks", () => {
     const texts = reply.mock.calls.map((c) => c[2][0]!.text);
     expect(texts[0]).toContain("ขอบคุณที่ยืนยัน");
     expect(texts[1]).toContain("แจ้งร้าน");
+  });
+  it("ขอเลื่อน replies with a LIFF link that opens the reschedule picker when liffId is set (T22)", async () => {
+    const { handler, reply } = setup({ liffId: "1234-abcd" });
+    await handler(req(postbackEvent(`reminder=reschedule&booking=${BK}`)));
+    const text = reply.mock.calls[0]![2][0]!.text;
+    const url = text.split("\n").find((l) => l.startsWith("https://"))!;
+    const u = new URL(url);
+    expect(u.origin + u.pathname).toBe("https://liff.line.me/1234-abcd");
+    expect(u.searchParams.get("shop")).toBe(SHOP);
+    expect(u.searchParams.get("page")).toBe("my-bookings");
+    expect(u.searchParams.get("reschedule")).toBe(BK);
+    // someone else's booking never gets the link
+    const o = setup({ liffId: "1234-abcd" });
+    await o.handler(req(postbackEvent(`reminder=reschedule&booking=${BK}`, "Uother")));
+    expect(o.reply.mock.calls[0]![2][0]!.text).toContain("ไม่พบการจอง");
   });
   it("refuses other users, cancelled bookings and ignores unknown postbacks", async () => {
     const { handler, reply } = setup();

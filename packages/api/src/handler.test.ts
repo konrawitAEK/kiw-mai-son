@@ -56,6 +56,10 @@ function makeDb(over: Partial<Db> = {}): Db {
     }),
     getBooking: async (id) => (id === BK ? record : null),
     cancelBooking: async () => {},
+    rescheduleBooking: async (id, to): Promise<InsertResult> => ({
+      ok: true,
+      booking: { ...record, id, staffId: to.staffId, start: to.start, end: to.end },
+    }),
     listCustomerBookings: async () => [],
     getShopOwner: async () => "UOWNER",
     createPhoneCustomer: async () => "cust-phone",
@@ -309,6 +313,122 @@ describe("cancel booking", () => {
   });
 });
 
+describe("POST /bookings/:id/reschedule (T22)", () => {
+  it("moves the caller's own booking to another free slot, keeping the same staff when free", async () => {
+    const resched = vi.fn(
+      async (id: string, to: { staffId: string; start: string; end: string }) =>
+        ({
+          ok: true,
+          booking: {
+            id,
+            shopId: SHOP,
+            staffId: to.staffId,
+            serviceId: SVC,
+            customerLineUserId: "U1",
+            start: to.start,
+            end: to.end,
+            status: "confirmed",
+            depositStatus: "none",
+            depositAmount: 0,
+          },
+        }) as InsertResult,
+    );
+    const { handler } = setup(makeDb({ rescheduleBooking: resched }));
+    const r = await handler(post(`/bookings/${BK}/reschedule`, { start: slot("10:30") }));
+    expect(r.status).toBe(200);
+    const body = (await r.json()) as { booking: { start: string; end: string } };
+    expect(Date.parse(body.booking.start)).toBe(Date.parse(slot("10:30")));
+    expect(Date.parse(body.booking.end)).toBe(Date.parse(slot("11:00")));
+    // booking is with staff A: A is tried first
+    expect(resched).toHaveBeenCalledWith(BK, {
+      staffId: A,
+      start: `${DAY}T10:30:00.000+07:00`,
+      end: `${DAY}T11:00:00.000+07:00`,
+    });
+  });
+
+  it("409 with the Thai conflict message when the DB exclusion constraint rejects every candidate (race)", async () => {
+    const resched = vi.fn(async (): Promise<InsertResult> => ({ ok: false, reason: "conflict" }));
+    const { handler } = setup(makeDb({ rescheduleBooking: resched }));
+    const r = await handler(post(`/bookings/${BK}/reschedule`, { start: slot("10:30") }));
+    expect(r.status).toBe(409);
+    expect((await r.json()).error).toBe("ช่วงเวลานี้เพิ่งถูกจอง กรุณาเลือกใหม่");
+    expect(resched).toHaveBeenCalledTimes(2); // staff A then B, both lost the race
+  });
+
+  it("falls back to another staff member when the first one conflicts", async () => {
+    const resched = vi
+      .fn<Db["rescheduleBooking"]>()
+      .mockResolvedValueOnce({ ok: false, reason: "conflict" })
+      .mockImplementationOnce(async (id, to) => ({
+        ok: true,
+        booking: {
+          id,
+          shopId: SHOP,
+          staffId: to.staffId,
+          serviceId: SVC,
+          customerLineUserId: "U1",
+          start: to.start,
+          end: to.end,
+          status: "confirmed",
+          depositStatus: "none",
+          depositAmount: 0,
+        },
+      }));
+    const { handler } = setup(makeDb({ rescheduleBooking: resched }));
+    const r = await handler(post(`/bookings/${BK}/reschedule`, { start: slot("10:30") }));
+    expect(r.status).toBe(200);
+    expect((await r.json()).booking.staffId).toBe(B);
+  });
+
+  it("404 for someone else's booking, 401 without a token, never moves", async () => {
+    const resched = vi.fn(async (): Promise<InsertResult> => ({ ok: false, reason: "conflict" }));
+    const other = setup(makeDb({ rescheduleBooking: resched }), {
+      userId: "U2",
+      displayName: "คนอื่น",
+    });
+    expect(
+      (await other.handler(post(`/bookings/${BK}/reschedule`, { start: slot("10:30") }))).status,
+    ).toBe(404);
+    const { handler } = setup(makeDb({ rescheduleBooking: resched }));
+    expect(
+      (await handler(post(`/bookings/${BK}/reschedule`, { start: slot("10:30") }, "bad"))).status,
+    ).toBe(401);
+    expect(resched).not.toHaveBeenCalled();
+  });
+
+  it("rejects bad input, past times, closed times and cancelled bookings", async () => {
+    const resched = vi.fn(async (): Promise<InsertResult> => ({ ok: false, reason: "conflict" }));
+    const { handler } = setup(makeDb({ rescheduleBooking: resched }));
+    const go = (body: unknown) => handler(post(`/bookings/${BK}/reschedule`, body));
+    expect((await go({})).status).toBe(400);
+    expect((await go({ start: "nope" })).status).toBe(400);
+    expect((await go({ start: "2026-12-05T10:00:00+07:00" })).status).toBe(422); // past
+    expect((await go({ start: slot("12:00") })).status).toBe(422); // outside working hours
+    const cancelled = setup(
+      makeDb({
+        rescheduleBooking: resched,
+        getBooking: async () => ({
+          id: BK,
+          shopId: SHOP,
+          staffId: A,
+          serviceId: SVC,
+          customerLineUserId: "U1",
+          start: slot("10:00"),
+          end: slot("10:30"),
+          status: "cancelled",
+          depositStatus: "none",
+          depositAmount: 0,
+        }),
+      }),
+    );
+    const r = await cancelled.handler(post(`/bookings/${BK}/reschedule`, { start: slot("10:30") }));
+    expect(r.status).toBe(422);
+    expect((await r.json()).error).toBe(MSG.cannotReschedule);
+    expect(resched).not.toHaveBeenCalled();
+  });
+});
+
 describe("GET /shops/:id/my-bookings (T21)", () => {
   const getMine = (token?: string) =>
     new Request(`https://x.test/shops/${SHOP}/my-bookings`, {
@@ -325,6 +445,7 @@ describe("GET /shops/:id/my-bookings (T21)", () => {
     const list = vi.fn(async () => [
       {
         id: BK,
+        serviceId: SVC,
         serviceName: "ตัดผม",
         staffName: "เอ",
         start: slot("10:00"),

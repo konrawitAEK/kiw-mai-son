@@ -16,6 +16,7 @@ export { MSG };
  *   POST /shops/:shopId/bookings   { serviceId, start, staffId? }   (LIFF ID token)
  *   GET  /shops/:shopId/my-bookings                                  (T21, LIFF ID token: the caller's own upcoming bookings)
  *   POST /bookings/:id/cancel                                        (LIFF ID token, own booking only)
+ *   POST /bookings/:id/reschedule { start, staffId? }                (T22, LIFF ID token, own booking only; 409 + Thai message on a race)
  *   GET  /bookings/:id/deposit                                       (LIFF ID token, own booking only)
  *   POST /bookings/:id/slip       { contentType, dataBase64 }        (LIFF ID token, own booking only)
  * Owner admin (LIFF ID token must belong to the shop owner; see admin.ts):
@@ -143,6 +144,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     if (parts[0] === "bookings" && parts[1] && parts.length === 3) {
       if (method === "POST" && parts[2] === "cancel") return cancelBooking(req, parts[1]);
+      if (method === "POST" && parts[2] === "reschedule") return reschedule(req, parts[1]);
       if (method === "GET" && parts[2] === "deposit") return ownBooking(req, parts[1], "deposit");
       if (method === "POST" && parts[2] === "slip") return ownBooking(req, parts[1], "slip");
     }
@@ -228,6 +230,65 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (!booking || booking.customerLineUserId !== user.userId) return err(404, MSG.notFound);
     if (booking.status !== "cancelled") await deps.db.cancelBooking(bookingId);
     return json(200, { booking: { ...booking, status: "cancelled" } });
+  }
+
+  /** T22: move the caller's own booking to another free slot. The DB exclusion constraint decides races. */
+  async function reschedule(req: Request, bookingId: string): Promise<Response> {
+    const user = await authenticate(req);
+    if (!user) return err(401, MSG.unauthorized);
+    if (!UUID.test(bookingId)) return err(404, MSG.notFound);
+    const booking = await deps.db.getBooking(bookingId);
+    if (!booking || booking.customerLineUserId !== user.userId) return err(404, MSG.notFound);
+    if (booking.status !== "pending" && booking.status !== "confirmed") {
+      return err(422, MSG.cannotReschedule);
+    }
+
+    let body: { start?: unknown; staffId?: unknown };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      return err(400, MSG.badRequest);
+    }
+    const { start, staffId } = body;
+    if (
+      typeof start !== "string" ||
+      (staffId != null && (typeof staffId !== "string" || !UUID.test(staffId)))
+    ) {
+      return err(400, MSG.badRequest);
+    }
+    const startMs = Date.parse(start);
+    if (Number.isNaN(startMs)) return err(400, MSG.badRequest);
+    if (startMs <= deps.now()) return err(422, MSG.past);
+
+    const startIso = toBangkokIso(startMs);
+    // Open-hours check ignores existing bookings: overlap is decided by the DB constraint (race-safe).
+    const open = await slotsFor(
+      booking.shopId,
+      booking.serviceId,
+      startIso.slice(0, 10),
+      staffId ?? null,
+      true,
+    );
+    if (!open) return err(404, MSG.notFound);
+    const slot = open.slots.find((s) => Date.parse(s.start) === startMs);
+    if (!slot) return err(422, MSG.notOpen);
+
+    const endIso = toBangkokIso(startMs + open.service.durationMin * MIN_MS);
+    // Prefer the staff member the customer already has; otherwise try each free one in turn.
+    const candidates = [...slot.staffIds].sort(
+      (a, b) => Number(b === booking.staffId) - Number(a === booking.staffId),
+    );
+    for (const candidate of candidates) {
+      const result = await deps.db.rescheduleBooking(bookingId, {
+        staffId: candidate,
+        start: startIso,
+        end: endIso,
+      });
+      if (result.ok) {
+        return json(200, { booking: result.booking });
+      }
+    }
+    return err(409, MSG.conflict);
   }
 
   /** Deposit routes for the signed-in customer's own booking (someone else's looks like a missing one). */

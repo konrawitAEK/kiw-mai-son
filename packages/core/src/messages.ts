@@ -90,6 +90,11 @@ export const REMINDER_CONFIRM_REPLY = "ขอบคุณที่ยืนย�
 export const REMINDER_RESCHEDULE_REPLY =
   "รับทราบค่ะ กรุณาแจ้งร้านเพื่อเลื่อนนัดโดยเร็วที่สุด ทางร้านจะช่วยหาเวลาใหม่ให้";
 
+/** Reply to the reminder "ขอเลื่อน" button when the shop's LIFF link is known (T22). */
+export function rescheduleLinkReply(url: string): string {
+  return `รับทราบค่ะ แตะลิงก์เพื่อเลือกวัน-เวลาใหม่ที่ว่าง แล้วระบบจะย้ายนัดให้ทันที\n${url}`;
+}
+
 export type DepositDecisionKind = "deposit_confirmed" | "deposit_rejected" | "deposit_cancelled";
 
 export interface DepositDecisionInput {

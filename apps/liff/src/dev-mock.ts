@@ -25,6 +25,7 @@ export function createMockApi(): BookingApi {
   let mine: MyBooking[] = [
     {
       id: "m1",
+      serviceId: "s1",
       serviceName: "ตัดผมชาย",
       staffName: "พี่แอน",
       start: `${day(1)}T14:00:00+07:00`,
@@ -35,6 +36,7 @@ export function createMockApi(): BookingApi {
     },
     {
       id: "m2",
+      serviceId: "s2",
       serviceName: "ทำสีผม",
       staffName: "พี่บอย",
       start: `${day(3)}T10:00:00+07:00`,
@@ -80,6 +82,16 @@ export function createMockApi(): BookingApi {
     listMyBookings: async () => mine,
     cancelBooking: async (id) => {
       mine = mine.filter((b) => b.id !== id);
+    },
+    rescheduleBooking: async (id, input) => {
+      if (input.start.includes("T10:30")) {
+        throw new ApiError(409, "ช่วงเวลานี้เพิ่งถูกจอง กรุณาเลือกใหม่");
+      }
+      const b = mine.find((x) => x.id === id);
+      if (!b) throw new ApiError(404, "ไม่พบข้อมูลที่ต้องการ");
+      const end = addMinutesIso(input.start, b.serviceId === "s2" ? 120 : 30);
+      mine = mine.map((x) => (x.id === id ? { ...x, start: input.start, end } : x));
+      return { id, start: input.start, end, staffId: "a", serviceId: b.serviceId };
     },
   };
 }

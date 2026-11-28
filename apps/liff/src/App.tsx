@@ -77,7 +77,11 @@ export function App() {
   // Owner admin: /?page=admin&shop=<id>. The server enforces owner-only access (403 for anyone else).
   if (isAdmin) return <AdminPage api={adminApi} />;
   // Rich-menu "นัดของฉัน": /?page=my-bookings&shop=<id>
-  if (isMyBookings) return <MyBookingsPage api={api} onClose={closeLiff} />;
+  // `&reschedule=<bookingId>` comes from the reminder "ขอเลื่อน" reply (T22) and opens the picker directly.
+  if (isMyBookings) {
+    const rescheduleId = new URLSearchParams(window.location.search).get("reschedule") ?? undefined;
+    return <MyBookingsPage api={api} onClose={closeLiff} initialRescheduleId={rescheduleId} />;
+  }
   return <BookingPage api={api} onClose={closeLiff} />;
 }
 
