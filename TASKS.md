@@ -79,6 +79,25 @@ Timeline reference: weekdays 21:00–23:00 review, weekends for HUMAN tasks. Tar
   - needs: T17
 - [ ] **H10 [HUMAN]** Collect real results + permission for testimonials; rerun the simulated buyer panel on Haiku with real objections; open "30 ร้านแรก".
 
+## Follow-ups — bug fixes and gaps found during the T1–T18 build
+
+- [ ] **T19** Fix booking-time display: the confirm step (and admin/reminders) shows end time = start, e.g. "10:00 - 10:00". Compute end = start + service.durationMin and show "HH:mm - HH:mm".
+  - Done when: a unit/component test asserts the confirm summary shows end = start + duration for a 30-min and a 120-min service (e.g. 10:00–10:30, 10:00–12:00); existing tests still pass.
+- [ ] **T20** Customer LINE push on deposit decision: when the owner confirms/rejects a deposit slip, or an unpaid deposit auto-cancels (T12), push a Thai message to the customer (not only the in-app "ตรวจสอบสถานะ").
+  - needs: — (T12 already on main)
+  - Done when: handler tests assert a push is enqueued with the right Thai text on confirm, on reject, and on auto-cancel, and no push on a no-op.
+- [ ] **T21** LIFF "นัดของฉัน" page: route `?page=my-bookings` (the T9 rich-menu button target) listing the signed-in customer's upcoming bookings with a cancel action.
+  - Done when: component test renders upcoming bookings and cancels one; `pnpm --filter @kms/liff build` passes; PR has a screenshot.
+- [ ] **T22** "ขอเลื่อน" actually reschedules: the reminder postback / my-bookings lets the customer pick another free slot and moves the booking (DB exclusion constraint still prevents overlap; returns the Thai conflict message on a race).
+  - needs: T21
+  - Done when: handler tests cover a successful reschedule and a 409 conflict with the Thai message; the reminder "ขอเลื่อน" button routes here.
+- [ ] **T23** Block actions when the subscription is expired/overdue (T17 only displays status now): refuse new bookings with a clear Thai message when the shop is expired, and show a banner in owner admin. Free trial and paid shops are unaffected.
+  - Done when: a test asserts booking-create is refused for an expired shop and allowed for an active one; owner admin shows the banner.
+- [ ] **T24** CSV export fallback for the LINE in-app browser (T14): if the blob download is blocked (iOS/Android in-app webview), fall back to opening the CSV via an external browser link.
+  - Done when: the download helper has a tested fallback branch; PR notes how to verify on a real phone.
+- [ ] **T25** Close the booking-confirmation loop: after a successful booking the LIFF page sends `ยืนยันการจอง <bookingId>` via `liff.sendMessages` so the T6 webhook replies with the confirmation (currently the webhook expects this message but T5 never sends it).
+  - Done when: a test asserts `liff.sendMessages` is called with the expected text after a booking; mock mode unaffected.
+
 ---
 
 ## Log
