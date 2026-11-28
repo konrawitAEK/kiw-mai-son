@@ -1,10 +1,18 @@
 import type { Slot } from "@kms/core";
-import { ApiError, type BookingApi } from "./api.js";
-import type { AdminApi, AdminSchedule } from "./admin-api.js";
+import { ApiError, type BookingApi, type DepositInfo } from "./api.js";
+import type { AdminApi, AdminSchedule, AdminSettings } from "./admin-api.js";
 
 /** Fake API for `pnpm --filter @kms/liff dev` with `?mock=1` (dev only; never bundled in builds). */
 export function createMockApi(): BookingApi {
   const shopId = "mock";
+  // Sample PromptPay QR text (not a real account) so the QR renders in the dev mock.
+  let deposit: DepositInfo = {
+    amount: 300,
+    status: "pending",
+    promptPayPayload:
+      "00020101021229370016A000000677010111011300668123456785303764540600300.005802TH63040000",
+    timeoutHours: 24,
+  };
   return {
     listServices: async () => [
       { id: "s1", shopId, name: "ตัดผมชาย", durationMin: 30, price: 250, deposit: 0 },
@@ -30,7 +38,13 @@ export function createMockApi(): BookingApi {
         end: input.start,
         staffId: input.staffId ?? "a",
         serviceId: input.serviceId,
+        deposit: input.serviceId === "s2" ? deposit : null,
       };
+    },
+    getDeposit: async () => ({ bookingStatus: "pending", deposit }),
+    uploadSlip: async () => {
+      deposit = { ...deposit, status: "submitted" };
+      return deposit;
     },
   };
 }
@@ -86,6 +100,7 @@ export function createMockAdminApi(): AdminApi {
       { id: "t1", staffId: "b", start: at("12:00"), end: at("13:00"), reason: "พักกลางวัน" },
     ],
   };
+  let settings: AdminSettings = { promptPayId: null, depositTimeoutHours: null };
   return {
     listServices: async () => [
       { id: "s1", shopId: "mock", name: "ตัดผมชาย", durationMin: 30, price: 250, deposit: 0 },
@@ -108,6 +123,19 @@ export function createMockAdminApi(): AdminApi {
     },
     cancelBooking: async (id) => {
       schedule.bookings = schedule.bookings.filter((b) => b.id !== id);
+    },
+    getSlip: async () => null,
+    decideDeposit: async (id, d) => {
+      const b = schedule.bookings.find((x) => x.id === id);
+      if (!b) return;
+      if (d === "confirm") {
+        b.status = "confirmed";
+        b.depositStatus = "paid";
+      } else b.depositStatus = "rejected";
+    },
+    getSettings: async () => settings,
+    saveSettings: async (v) => {
+      settings = { ...v };
     },
     blockTime: async (i) => {
       schedule.timeOff.push({ id: String(Date.now()), ...i, reason: i.reason || null });

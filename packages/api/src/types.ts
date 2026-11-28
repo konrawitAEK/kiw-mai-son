@@ -6,6 +6,9 @@ export interface LiffUser {
   displayName: string;
 }
 
+/** Mirrors `bookings.deposit_status` (see supabase/migrations/20261128020000_deposits.sql). */
+export type DepositStatus = "none" | "pending" | "submitted" | "paid" | "rejected" | "refunded";
+
 export interface BookingRecord {
   id: string;
   shopId: string;
@@ -16,6 +19,9 @@ export interface BookingRecord {
   start: string;
   end: string;
   status: Booking["status"];
+  depositStatus: DepositStatus;
+  /** THB; 0 = no deposit. */
+  depositAmount: number;
 }
 
 export interface DayData {
@@ -33,6 +39,20 @@ export interface InsertBookingInput {
   end: string;
   /** Default "line". Owner-created bookings for phone customers use "owner". */
   channel?: "line" | "owner";
+  /** THB. > 0 creates the booking as status "pending" / deposit "pending"; 0 or omitted = confirmed, no deposit. */
+  depositAmount?: number;
+}
+
+export interface ShopPayment {
+  /** Raw PromptPay ID as the owner entered it (never exposed to customers; only the QR payload is). */
+  promptPayId: string | null;
+  /** Hours until an unpaid deposit auto-cancels; null = off. */
+  depositTimeoutHours: number | null;
+}
+
+export interface SlipImage {
+  contentType: "image/jpeg" | "image/png" | "image/webp";
+  data: Uint8Array;
 }
 
 /** One row of the owner's schedule view. */
@@ -47,6 +67,8 @@ export interface ScheduleBooking {
   end: string;
   status: Booking["status"];
   channel: "line" | "owner";
+  depositStatus: DepositStatus;
+  depositAmount: number;
 }
 
 export interface TimeOffRecord {
@@ -94,6 +116,14 @@ export interface Db {
   /** Owner admin: active staff, non-cancelled bookings and time off overlapping [fromIso, toIso). */
   listSchedule(shopId: string, fromIso: string, toIso: string): Promise<Schedule>;
   insertTimeOff(input: InsertTimeOffInput): Promise<TimeOffRecord>;
+  /** Deposit settings of the shop, or null if the shop does not exist. */
+  getShopPayment(shopId: string): Promise<ShopPayment | null>;
+  updateShopPayment(shopId: string, payment: ShopPayment): Promise<void>;
+  /** Stores (replaces) the slip and sets deposit_status "submitted". Only valid while pending/submitted/rejected. */
+  saveSlip(bookingId: string, slip: SlipImage): Promise<void>;
+  getSlip(bookingId: string): Promise<SlipImage | null>;
+  /** "paid" -> status confirmed + deposit paid; "rejected" -> deposit rejected (booking stays pending). */
+  decideDeposit(bookingId: string, decision: "paid" | "rejected"): Promise<void>;
 }
 
 export interface Deps {
