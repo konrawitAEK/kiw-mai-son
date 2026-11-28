@@ -30,3 +30,11 @@ export type { ReminderCandidate, ReminderDeps, ReminderResult, LineMessage } fro
 export { createDataPrivacyRoutes } from "./data-privacy.js";
 export { createDepositRoutes, depositInfo } from "./deposit.js";
 export type { DepositInfo } from "./deposit.js";
+export {
+  createFounderAlerter,
+  createHealthHandler,
+  withErrorAlert,
+  functionErrorText,
+  reminderFailureText,
+} from "./monitoring.js";
+export type { Alert, AlerterConfig, HealthDeps, HealthReport } from "./monitoring.js";

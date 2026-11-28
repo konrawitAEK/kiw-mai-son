@@ -7,6 +7,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.47.10";
 import { createHandler } from "../../../packages/api/src/handler.ts";
 import { createLineVerifier } from "../../../packages/api/src/line-verify.ts";
+import { createFounderAlerter, withErrorAlert } from "../../../packages/api/src/monitoring.ts";
 import { createSupabaseDb } from "./supabase-db.ts";
 
 declare const Deno: {
@@ -19,10 +20,19 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+const alert = createFounderAlerter({
+  channelAccessToken: Deno.env.get("FOUNDER_LINE_CHANNEL_TOKEN"),
+  founderUserId: Deno.env.get("FOUNDER_LINE_USER_ID"),
+});
+
 Deno.serve(
-  createHandler({
-    db: createSupabaseDb(supabase),
-    verifyIdToken: createLineVerifier(Deno.env.get("LINE_LOGIN_CHANNEL_ID") ?? ""),
-    now: () => Date.now(),
-  }),
+  withErrorAlert(
+    "api",
+    createHandler({
+      db: createSupabaseDb(supabase),
+      verifyIdToken: createLineVerifier(Deno.env.get("LINE_LOGIN_CHANNEL_ID") ?? ""),
+      now: () => Date.now(),
+    }),
+    alert,
+  ),
 );
