@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { AdminPage } from "./AdminPage.js";
 import { createAdminApi, type AdminApi } from "./admin-api.js";
+import { OnboardingPage } from "./OnboardingPage.js";
+import { createOnboardingApi, type OnboardingApi } from "./onboarding-api.js";
 import { BookingPage } from "./BookingPage.js";
 import { createBookingApi, type BookingApi } from "./api.js";
 import { LegalPage } from "./LegalPage.js";
@@ -15,6 +17,7 @@ export function App() {
 
   const page = new URLSearchParams(window.location.search).get("page");
   const isAdmin = page === "admin";
+  const isOnboarding = page === "onboarding";
   const isLegal = page === "privacy" || page === "terms";
   const shopId = new URLSearchParams(window.location.search).get("shop") ?? "";
   const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
@@ -44,10 +47,21 @@ export function App() {
     [baseUrl, shopId, idToken],
   );
 
+  const onboardingApi = useMemo(
+    () => createOnboardingApi({ baseUrl, getIdToken: () => idToken }),
+    [baseUrl, idToken],
+  );
+
   // Legal pages are public static text: no LIFF login, no shop id needed.
   if (isLegal) return <LegalPage kind={page} />;
   if (useMock) {
-    return isAdmin ? <MockAdmin /> : <MockBooking />;
+    return isOnboarding ? <MockOnboarding /> : isAdmin ? <MockAdmin /> : <MockBooking />;
+  }
+  // Shop onboarding: /?page=onboarding (optionally &shop=<id> to resume). No shop id needed to start.
+  if (isOnboarding) {
+    if (fatal) return <p className="page">{fatal}</p>;
+    if (!ready) return <p className="page">กำลังโหลด...</p>;
+    return <OnboardingPage api={onboardingApi} initialShopId={shopId} />;
   }
   if (!shopId) return <p className="page">ลิงก์ไม่ถูกต้อง กรุณาเปิดจากเมนูของร้าน</p>;
   if (fatal) return <p className="page">{fatal}</p>;
@@ -71,4 +85,12 @@ function MockAdmin() {
     void import("./dev-mock.js").then((m) => setApi(m.createMockAdminApi()));
   }, []);
   return api ? <AdminPage api={api} /> : null;
+}
+
+function MockOnboarding() {
+  const [api, setApi] = useState<OnboardingApi | null>(null);
+  useEffect(() => {
+    void import("./dev-mock.js").then((m) => setApi(m.createMockOnboardingApi()));
+  }, []);
+  return api ? <OnboardingPage api={api} /> : null;
 }

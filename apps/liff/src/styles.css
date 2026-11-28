@@ -258,6 +258,27 @@ ul {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+.section {
+  margin: 20px 0;
+  padding: 14px;
+  border: 1px solid #e0e3e8;
+  border-radius: 12px;
+  background: #fff;
+  display: grid;
+  gap: 10px;
+}
+.section h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.hours {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eef0f3;
+}
+.hours .seg button {
+  min-width: 0;
+  padding: 0 4px;
+}
 
 /* Deposit (T12) */
 .deposit {

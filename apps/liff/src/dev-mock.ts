@@ -1,6 +1,7 @@
-import type { Slot } from "@kms/core";
+import type { Service, Slot, Staff } from "@kms/core";
 import { ApiError, type BookingApi, type DepositInfo } from "./api.js";
 import type { AdminApi, AdminSchedule, AdminSettings } from "./admin-api.js";
+import type { OnboardingApi, SetupStatus } from "./onboarding-api.js";
 
 /** Fake API for `pnpm --filter @kms/liff dev` with `?mock=1` (dev only; never bundled in builds). */
 export function createMockApi(): BookingApi {
@@ -143,5 +144,54 @@ export function createMockAdminApi(): AdminApi {
     blockTime: async (i) => {
       schedule.timeOff.push({ id: String(Date.now()), ...i, reason: i.reason || null });
     },
+  };
+}
+
+/** Fake onboarding API for `?mock=1&page=onboarding` (dev only). Keeps state in memory. */
+export function createMockOnboardingApi(): OnboardingApi {
+  const services: Service[] = [];
+  const staff: Staff[] = [];
+  const hours = new Set<string>();
+  let connected = false;
+  let menu = false;
+  const status = (): SetupStatus => ({
+    shop: { id: "mock", name: "ร้านเดโม" },
+    channel: connected
+      ? { connected: true, channelId: "1234567890", destination: "Umock" }
+      : { connected: false },
+    richMenuDone: menu,
+    staffWithHours: [...hours],
+  });
+  return {
+    createShop: async () => ({ shopId: "mock" }),
+    forShop: () => ({
+      getSetup: async () => status(),
+      saveChannel: async () => {
+        connected = true;
+        return { botName: "ร้านเดโม OA" };
+      },
+      listServices: async () => [...services],
+      listStaff: async () => [...staff],
+      addService: async (i) => {
+        const s: Service = { id: `s${services.length}`, shopId: "mock", ...i };
+        services.push(s);
+        return s;
+      },
+      addStaff: async (name) => {
+        const s: Staff = { id: `st${staff.length}`, shopId: "mock", name };
+        staff.push(s);
+        return s;
+      },
+      setHours: async (id) => {
+        hours.add(id);
+      },
+      uploadRichMenu: async () => {
+        menu = true;
+      },
+      listSlots: async (_s, date): Promise<Slot[]> => [
+        { start: `${date}T23:00:00+07:00`, end: `${date}T23:30:00+07:00`, staffIds: ["st0"] },
+      ],
+      addTestBooking: async () => {},
+    }),
   };
 }

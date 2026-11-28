@@ -1,4 +1,6 @@
 import type { Booking, Service, Staff, TimeOff, WorkingHours } from "@kms/core";
+import type { ChannelValidator } from "./line-channel.js";
+import type { setupRichMenu } from "./rich-menu.js";
 
 export interface LiffUser {
   /** LINE user id (the ID token `sub`). */
@@ -164,8 +166,61 @@ export interface ExportBooking {
   createdAt: string;
 }
 
+export interface HoursWindow {
+  weekday: number;
+  start: string;
+  end: string;
+}
+
+export interface LineChannelRow {
+  channelId: string;
+  destination: string | null;
+  secretEnc: Uint8Array;
+  tokenEnc: Uint8Array;
+  richMenuId: string | null;
+}
+
+/** Data access for shop onboarding (T13). Optional in `Deps`: routes are off when absent. */
+export interface OnboardingDb {
+  findShopByOwner(ownerLineUserId: string): Promise<{ id: string; name: string } | null>;
+  createShop(name: string, ownerLineUserId: string): Promise<string>;
+  getShopName(shopId: string): Promise<string | null>;
+  /** "taken" = that channel id or bot is already connected to another shop. */
+  saveLineChannel(input: {
+    shopId: string;
+    channelId: string;
+    destination: string;
+    secretEnc: Uint8Array;
+    tokenEnc: Uint8Array;
+  }): Promise<"ok" | "taken">;
+  getLineChannel(shopId: string): Promise<LineChannelRow | null>;
+  setRichMenuId(shopId: string, richMenuId: string): Promise<void>;
+  insertService(
+    shopId: string,
+    s: { name: string; durationMin: number; price: number; deposit: number },
+  ): Promise<Service>;
+  insertStaff(shopId: string, name: string): Promise<Staff>;
+  /** Replaces all working hours of a staff member; false if the staff is not in this shop. */
+  replaceWorkingHours(shopId: string, staffId: string, windows: HoursWindow[]): Promise<boolean>;
+  listWorkingHours(shopId: string): Promise<WorkingHours[]>;
+}
+
+export interface OnboardingDeps {
+  db: OnboardingDb;
+  validateChannel: ChannelValidator;
+  /** CHANNEL_TOKEN_ENC_KEY: base64 of 32 bytes. */
+  encryptionKey: string;
+  /** LIFF app id, used for rich menu links. */
+  liffId: string;
+  /** If set, creating a shop requires this code (ONBOARDING_INVITE_CODE). */
+  inviteCode?: string;
+  /** Defaults to the real LINE rich menu setup. */
+  richMenu?: typeof setupRichMenu;
+}
+
 export interface Deps {
   db: Db;
+  onboarding?: OnboardingDeps;
   /** Verifies a LIFF ID token; null if invalid/expired. */
   verifyIdToken(idToken: string): Promise<LiffUser | null>;
   now(): number;

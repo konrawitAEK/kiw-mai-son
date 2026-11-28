@@ -2,6 +2,7 @@ import { bangkokDayStart, toBangkokIso } from "@kms/core";
 import { createDataPrivacyRoutes } from "./data-privacy.js";
 import { createDepositRoutes } from "./deposit.js";
 import { DAY_MS, err, json, MIN_MS, MSG, UUID } from "./http.js";
+import { createOnboardingAdminRoutes } from "./onboarding.js";
 import type { Deps } from "./types.js";
 
 const MAX_DAYS = 7;
@@ -23,6 +24,7 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
  * `rest` is the path after `/shops/:shopId/admin`.
  */
 export function createAdminRoutes(deps: Deps) {
+  const onboarding = deps.onboarding ? createOnboardingAdminRoutes(deps.onboarding) : null;
   const deposits = createDepositRoutes(deps);
   const privacy = createDataPrivacyRoutes(deps);
 
@@ -46,6 +48,9 @@ export function createAdminRoutes(deps: Deps) {
     if (owner === null || owner !== user.userId) return err(403, MSG.forbidden);
 
     const [a, b, c] = rest;
+
+    const onboardingResponse = await onboarding?.(req, shopId, rest);
+    if (onboardingResponse) return onboardingResponse;
 
     if (req.method === "GET" && a === "schedule" && rest.length === 1) {
       const from = url.searchParams.get("from") ?? "";

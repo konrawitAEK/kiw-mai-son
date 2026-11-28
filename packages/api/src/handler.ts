@@ -1,5 +1,6 @@
 import { availableSlots, bangkokDayStart, toBangkokIso } from "@kms/core";
 import { createAdminRoutes } from "./admin.js";
+import { createShopRoute } from "./onboarding.js";
 import { createDepositRoutes, depositInfo } from "./deposit.js";
 import { CORS, DAY_MS, err, json, MIN_MS, MSG, UUID } from "./http.js";
 import type { Deps } from "./types.js";
@@ -20,6 +21,14 @@ export { MSG };
  *   POST /shops/:shopId/admin/bookings        { serviceId, staffId, start, customerName, phone? }
  *   POST /shops/:shopId/admin/bookings/:id/cancel
  *   POST /shops/:shopId/admin/time-off        { staffId|null, start, end, reason? }
+ * Onboarding (T13, only when deps.onboarding is set; see onboarding.ts):
+ *   POST /onboarding/shops                    { name, inviteCode? }   (any signed-in LINE user; returns own shop if exists)
+ *   GET  /shops/:shopId/admin/setup
+ *   PUT  /shops/:shopId/admin/line-channel    { channelId, channelSecret, accessToken }
+ *   POST /shops/:shopId/admin/services        { name, durationMin, price, deposit? }
+ *   POST /shops/:shopId/admin/staff           { name }
+ *   PUT  /shops/:shopId/admin/staff/:id/hours { windows: [{weekday,start,end}] }
+ *   POST /shops/:shopId/admin/rich-menu       { imageBase64 }
  *   GET  /shops/:shopId/admin/bookings/:id/slip
  *   POST /shops/:shopId/admin/bookings/:id/deposit { decision: "confirm"|"reject" }
  *   GET|POST /shops/:shopId/admin/settings    { promptPayId|null, depositTimeoutHours|null }
@@ -71,6 +80,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   }
 
   const admin = createAdminRoutes(deps);
+  const createShop = deps.onboarding ? createShopRoute(deps.onboarding, deps) : null;
   const deposits = createDepositRoutes(deps);
 
   async function route(req: Request): Promise<Response> {
@@ -81,6 +91,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const method = req.method;
 
     if (method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+
+    if (createShop && method === "POST" && path === "/onboarding/shops") return createShop(req);
 
     if (parts[0] === "shops" && parts[1] && UUID.test(parts[1]) && parts[2] === "admin") {
       return admin(req, parts[1], parts.slice(3), url);
