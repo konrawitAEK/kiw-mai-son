@@ -5,6 +5,7 @@ import { toBangkokIso } from "@kms/core";
 import type { Booking, Service, Staff, TimeOff, WorkingHours } from "@kms/core";
 import type {
   BookingRecord,
+  CustomerBooking,
   Db,
   ExportBooking,
   ExportCustomer,
@@ -397,6 +398,32 @@ export function createSupabaseDb(sb: Client): Db {
     },
     async enqueueCustomerPush(bookingId, kind) {
       check(await sb.rpc("enqueue_customer_push", { p_booking_id: bookingId, p_kind: kind }));
+    },
+    async listCustomerBookings(shopId, lineUserId, fromIso) {
+      const rows: Row[] = check(
+        await sb
+          .from("bookings")
+          .select(
+            "id, during, status, deposit_status, deposit_amount, services(name), staff(name), customers!inner(line_user_id)",
+          )
+          .eq("shop_id", shopId)
+          .eq("customers.line_user_id", lineUserId)
+          .neq("status", "cancelled")
+          .overlaps("during", `[${fromIso},)`),
+      );
+      return rows
+        .map(
+          (r): CustomerBooking => ({
+            id: r.id,
+            serviceName: r.services?.name ?? "",
+            staffName: r.staff?.name ?? "",
+            status: r.status,
+            depositStatus: r.deposit_status,
+            depositAmount: r.deposit_amount,
+            ...parseBangkokRange(r.during),
+          }),
+        )
+        .sort((a, b) => a.start.localeCompare(b.start));
     },
     async cancelBooking(bookingId) {
       check(await sb.from("bookings").update({ status: "cancelled" }).eq("id", bookingId));

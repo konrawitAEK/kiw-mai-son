@@ -56,6 +56,7 @@ function makeDb(over: Partial<Db> = {}): Db {
     }),
     getBooking: async (id) => (id === BK ? record : null),
     cancelBooking: async () => {},
+    listCustomerBookings: async () => [],
     getShopOwner: async () => "UOWNER",
     createPhoneCustomer: async () => "cust-phone",
     listSchedule: async () => ({ staff, bookings: [], timeOff: [] }),
@@ -305,6 +306,40 @@ describe("cancel booking", () => {
     const r = await setup(db).handler(post(`/bookings/${BK}/cancel`));
     expect(r.status).toBe(200);
     expect(cancel).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /shops/:id/my-bookings (T21)", () => {
+  const getMine = (token?: string) =>
+    new Request(`https://x.test/shops/${SHOP}/my-bookings`, {
+      headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
+    });
+
+  it("401 without a valid token", async () => {
+    const { handler } = setup();
+    expect((await handler(getMine())).status).toBe(401);
+    expect((await handler(getMine("bad"))).status).toBe(401);
+  });
+
+  it("returns only the caller's upcoming bookings, queried by LINE user id and now", async () => {
+    const list = vi.fn(async () => [
+      {
+        id: BK,
+        serviceName: "ตัดผม",
+        staffName: "เอ",
+        start: slot("10:00"),
+        end: slot("10:30"),
+        status: "confirmed" as const,
+        depositStatus: "none" as const,
+        depositAmount: 0,
+      },
+    ]);
+    const { handler } = setup(makeDb({ listCustomerBookings: list }));
+    const r = await handler(getMine("good"));
+    expect(r.status).toBe(200);
+    const body = (await r.json()) as { bookings: { id: string }[] };
+    expect(body.bookings.map((b) => b.id)).toEqual([BK]);
+    expect(list).toHaveBeenCalledWith(SHOP, "U1", expect.stringMatching(/\+07:00$/));
   });
 });
 

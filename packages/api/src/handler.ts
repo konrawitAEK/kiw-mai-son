@@ -14,6 +14,7 @@ export { MSG };
  *   GET  /shops/:shopId/staff
  *   GET  /shops/:shopId/slots?serviceId=&date=YYYY-MM-DD[&staffId=]
  *   POST /shops/:shopId/bookings   { serviceId, start, staffId? }   (LIFF ID token)
+ *   GET  /shops/:shopId/my-bookings                                  (T21, LIFF ID token: the caller's own upcoming bookings)
  *   POST /bookings/:id/cancel                                        (LIFF ID token, own booking only)
  *   GET  /bookings/:id/deposit                                       (LIFF ID token, own booking only)
  *   POST /bookings/:id/slip       { contentType, dataBase64 }        (LIFF ID token, own booking only)
@@ -135,6 +136,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       if (method === "POST" && parts[2] === "bookings" && parts.length === 3) {
         return createBooking(req, shopId);
       }
+      if (method === "GET" && parts[2] === "my-bookings" && parts.length === 3) {
+        return myBookings(req, shopId);
+      }
     }
 
     if (parts[0] === "bookings" && parts[1] && parts.length === 3) {
@@ -198,6 +202,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
     }
     return err(409, MSG.conflict);
+  }
+
+  async function myBookings(req: Request, shopId: string): Promise<Response> {
+    const user = await authenticate(req);
+    if (!user) return err(401, MSG.unauthorized);
+    const bookings = await deps.db.listCustomerBookings(
+      shopId,
+      user.userId,
+      toBangkokIso(deps.now()),
+    );
+    return json(200, { bookings });
   }
 
   async function cancelBooking(req: Request, bookingId: string): Promise<Response> {
