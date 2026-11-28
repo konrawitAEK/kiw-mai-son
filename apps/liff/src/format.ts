@@ -49,6 +49,20 @@ export function timeLabel(iso: string): string {
   return iso.slice(11, 16);
 }
 
+/**
+ * "HH:mm - HH:mm" for a booking that starts at `startIso` (+07:00) and lasts
+ * `durationMin` minutes. The end is always start + duration, never a stored value.
+ */
+export function timeRangeLabel(startIso: string, durationMin: number): string {
+  const startMs = Date.parse(startIso);
+  const endMs = startMs + durationMin * 60_000;
+  return `${timeLabel(startIso)} - ${clockBangkok(endMs)}`;
+}
+
+function clockBangkok(ms: number): string {
+  return new Date(ms + BKK_OFFSET_MS).toISOString().slice(11, 16);
+}
+
 /** e.g. "พฤ. 3 ธ.ค." for YYYY-MM-DD. */
 export function dayLabel(date: string): string {
   const d = new Date(`${date}T00:00:00Z`);

@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import type { Service, Slot, Staff } from "@kms/core";
 import { BookingPage } from "./BookingPage.js";
 import { ApiError, createBookingApi, type BookingApi } from "./api.js";
-import { timeLabel, upcomingDays } from "./format.js";
+import { timeLabel, timeRangeLabel, upcomingDays } from "./format.js";
 
 afterEach(cleanup);
 
@@ -61,6 +61,11 @@ describe("format helpers", () => {
   });
   it("extracts HH:mm from +07:00 ISO", () => {
     expect(timeLabel("2026-12-03T09:30:00+07:00")).toBe("09:30");
+  });
+  it("shows end = start + duration as HH:mm - HH:mm", () => {
+    expect(timeRangeLabel("2026-12-03T10:00:00+07:00", 30)).toBe("10:00 - 10:30");
+    expect(timeRangeLabel("2026-12-03T10:00:00+07:00", 120)).toBe("10:00 - 12:00");
+    expect(timeRangeLabel("2026-12-03T23:00:00+07:00", 90)).toBe("23:00 - 00:30");
   });
 });
 
@@ -134,6 +139,37 @@ describe("BookingPage", () => {
       start: slots[0]!.start,
       staffId: "a",
     });
+  });
+
+  it("end time is start + service.durationMin, even if the API end equals start", async () => {
+    const user = userEvent.setup();
+    const broken = {
+      start: "2026-12-03T14:00:00+07:00",
+      end: "2026-12-03T14:00:00+07:00",
+      staffIds: ["a"],
+    };
+    const longSvc: Service = { ...svc, id: "s2", name: "ทำสีผม", durationMin: 120 };
+    const createBooking = vi.fn().mockResolvedValue({
+      id: "bk",
+      start: broken.start,
+      end: broken.start,
+      staffId: "a",
+      serviceId: "s2",
+    });
+    const api = fakeApi({
+      listServices: vi.fn().mockResolvedValue([longSvc]),
+      listSlots: vi.fn().mockResolvedValue([broken]),
+      createBooking,
+    });
+    render(<BookingPage api={api} now={() => NOW} />);
+    await user.click(await screen.findByRole("button", { name: /ทำสีผม/ }));
+    await user.click(screen.getByRole("button", { name: /พี่แอน/ }));
+    await user.click(screen.getByRole("button", { name: "พฤ. 3 ธ.ค." }));
+    await user.click(await screen.findByRole("button", { name: "14:00" }));
+    expect(screen.getByText("14:00 - 16:00 น.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "ยืนยันการจอง" }));
+    expect(await screen.findByText("จองคิวเรียบร้อยแล้ว")).toBeTruthy();
+    expect(screen.getByText("14:00 - 16:00 น.")).toBeTruthy();
   });
 
   it("on 409 conflict shows the Thai message, returns to time list and reloads slots", async () => {
