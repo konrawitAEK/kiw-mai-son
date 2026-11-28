@@ -395,6 +395,9 @@ export function createSupabaseDb(sb: Client): Db {
           : { deposit_status: "rejected" };
       check(await sb.from("bookings").update(patch).eq("id", bookingId).eq("status", "pending"));
     },
+    async enqueueCustomerPush(bookingId, kind) {
+      check(await sb.rpc("enqueue_customer_push", { p_booking_id: bookingId, p_kind: kind }));
+    },
     async cancelBooking(bookingId) {
       check(await sb.from("bookings").update({ status: "cancelled" }).eq("id", bookingId));
     },

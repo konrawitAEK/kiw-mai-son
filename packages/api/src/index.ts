@@ -32,6 +32,8 @@ export type { ChannelCheck, ChannelInput, ChannelValidator } from "./line-channe
 export { encryptSecret, decryptSecret } from "./secret-box.js";
 export type { OnboardingDb, OnboardingDeps, HoursWindow, LineChannelRow } from "./types.js";
 export { createDataPrivacyRoutes } from "./data-privacy.js";
+export { createCustomerPushHandler, runCustomerPushes } from "./customer-push.js";
+export type { CustomerPushDeps, CustomerPushResult, PendingPush } from "./customer-push.js";
 export { createDepositRoutes, depositInfo } from "./deposit.js";
 export type { DepositInfo } from "./deposit.js";
 export {
