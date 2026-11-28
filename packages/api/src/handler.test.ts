@@ -71,6 +71,7 @@ function makeDb(over: Partial<Db> = {}): Db {
     saveSlip: async () => {},
     getSlip: async () => null,
     decideDeposit: async () => {},
+    enqueueCustomerPush: async () => {},
     getShopName: async () => "ร้านทดสอบ",
     exportCustomers: async () => [],
     exportBookings: async () => [],
