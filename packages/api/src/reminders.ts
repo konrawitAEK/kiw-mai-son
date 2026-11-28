@@ -1,4 +1,5 @@
 import { reminderPostbackData, reminderText } from "@kms/core";
+import { reminderFailureText } from "./monitoring.js";
 
 export const HOUR_MS = 3_600_000;
 /** Reminder goes out when the booking starts within [now+23h, now+24h]; run the job every 15 min or so. */
@@ -143,6 +144,8 @@ export function createLinePush(fetchFn: typeof fetch = fetch): ReminderDeps["pus
 export function createReminderHandler(
   deps: ReminderDeps,
   cronSecret: string,
+  /** Optional founder alert (T15): called when any reminder failed to send. */
+  alert?: (text: string) => Promise<void>,
 ): (req: Request) => Promise<Response> {
   return async (req) => {
     if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
@@ -151,6 +154,7 @@ export function createReminderHandler(
       return new Response("unauthorized", { status: 401 });
     try {
       const result = await runReminders(deps);
+      if (result.failed > 0 && alert) await alert(reminderFailureText(result.failed, result.sent));
       return new Response(JSON.stringify(result), {
         status: 200,
         headers: { "Content-Type": "application/json" },

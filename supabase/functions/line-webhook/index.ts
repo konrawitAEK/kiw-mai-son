@@ -6,6 +6,7 @@
 // Set each shop's webhook URL (LINE console) to the deployed function URL.
 import { createClient } from "npm:@supabase/supabase-js@2.47.10";
 import { createWebhookHandler, createLineReply } from "../../../packages/api/src/webhook.ts";
+import { createFounderAlerter, withErrorAlert } from "../../../packages/api/src/monitoring.ts";
 import { createSupabaseDb } from "../api/supabase-db.ts";
 import { createChannelLookup } from "./channels.ts";
 
@@ -19,10 +20,22 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+const alert = createFounderAlerter({
+  channelAccessToken: Deno.env.get("FOUNDER_LINE_CHANNEL_TOKEN"),
+  founderUserId: Deno.env.get("FOUNDER_LINE_USER_ID"),
+});
+
 Deno.serve(
-  createWebhookHandler({
-    db: createSupabaseDb(supabase),
-    getChannelByDestination: createChannelLookup(supabase, Deno.env.get("CHANNEL_TOKEN_ENC_KEY")!),
-    reply: createLineReply(),
-  }),
+  withErrorAlert(
+    "line-webhook",
+    createWebhookHandler({
+      db: createSupabaseDb(supabase),
+      getChannelByDestination: createChannelLookup(
+        supabase,
+        Deno.env.get("CHANNEL_TOKEN_ENC_KEY")!,
+      ),
+      reply: createLineReply(),
+    }),
+    alert,
+  ),
 );
