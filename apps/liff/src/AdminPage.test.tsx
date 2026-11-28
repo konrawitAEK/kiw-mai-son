@@ -78,6 +78,8 @@ function fakeApi(over: Partial<AdminApi> = {}): AdminApi {
     getSlip: vi.fn().mockResolvedValue(null),
     decideDeposit: vi.fn().mockResolvedValue(undefined),
     getBilling: vi.fn(),
+    getReferral: vi.fn(),
+    redeemReferral: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({ promptPayId: null, depositTimeoutHours: null }),
     saveSettings: vi.fn().mockResolvedValue(undefined),
     exportCsv: vi.fn().mockResolvedValue("\uFEFFชื่อ\r\n"),

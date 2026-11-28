@@ -14,6 +14,7 @@ import { createSupabaseOnboardingDb } from "./onboarding-db.ts";
 import { createFounderAlerter, withErrorAlert } from "../../../packages/api/src/monitoring.ts";
 import { createSupabaseDb } from "./supabase-db.ts";
 import { createSupabaseBillingDb } from "./billing-db.ts";
+import { createSupabaseReferralDb } from "./referral-db.ts";
 
 declare const Deno: {
   env: { get(k: string): string | undefined };
@@ -54,6 +55,7 @@ Deno.serve(
             now: () => new Date(),
           }
         : undefined,
+      referral: createSupabaseReferralDb(supabase),
       verifyIdToken: createLineVerifier(Deno.env.get("LINE_LOGIN_CHANNEL_ID") ?? ""),
       now: () => Date.now(),
     }),

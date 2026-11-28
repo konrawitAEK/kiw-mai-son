@@ -35,6 +35,8 @@ export { MSG };
  *   GET|POST /shops/:shopId/admin/settings    { promptPayId|null, depositTimeoutHours|null }
  *   GET  /shops/:shopId/admin/billing         (T17, only when deps.billing is set: status, trial end, PromptPay QR payloads 199 / 1,990)
  *   POST /billing/mark-paid                   { shopId, plan: "monthly"|"yearly", note? }   (T17, founder LINE user only)
+ *   GET  /shops/:shopId/admin/referral        (T18, only when deps.referral is set: own code, count, share text)
+ *   POST /shops/:shopId/admin/referral/redeem { code }   (T18: both shops get +1 free month; Thai error on bad/own/used code)
  *   GET  /shops/:shopId/admin/export?kind=customers|bookings   (CSV download)
  *   POST /shops/:shopId/admin/delete          { confirmName }   (deletes the shop and all its data)
  */
