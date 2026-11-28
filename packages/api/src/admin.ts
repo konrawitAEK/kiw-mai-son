@@ -104,6 +104,9 @@ export function createAdminRoutes(deps: Deps) {
         return referral.redeem(req, shopId);
       }
     }
+    if (req.method === "POST" && a === "export-link" && rest.length === 1) {
+      return privacy.createExportLink(req, shopId, user.userId);
+    }
     if (req.method === "GET" && a === "export" && rest.length === 1) {
       return privacy.exportCsv(shopId, url);
     }

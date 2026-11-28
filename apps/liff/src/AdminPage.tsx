@@ -11,6 +11,7 @@ import type {
 import { BillingPanel } from "./BillingPanel.js";
 import { ReferralPanel } from "./ReferralPanel.js";
 import { LegalLinks } from "./LegalPage.js";
+import { inLineApp, openExternal } from "./liff.js";
 import { dayLabel, priceLabel, timeLabel, todayBangkok } from "./format.js";
 
 type View = "today" | "week";
@@ -19,11 +20,19 @@ type Mode = "schedule" | "add" | "block" | "settings" | "privacy" | "billing" | 
 interface Props {
   api: AdminApi;
   now?: () => number;
+  /** Test seams for the LINE in-app browser fallback (T24); default to the real LIFF helpers. */
+  inLine?: () => boolean;
+  openExternal?: (url: string) => void;
 }
 
 const msg = (e: unknown) => (e instanceof ApiError ? e.message : GENERIC_ERROR);
 
-export function AdminPage({ api, now = Date.now }: Props) {
+export function AdminPage({
+  api,
+  now = Date.now,
+  inLine = inLineApp,
+  openExternal: open = openExternal,
+}: Props) {
   const [view, setView] = useState<View>("today");
   const [mode, setMode] = useState<Mode>("schedule");
   const [schedule, setSchedule] = useState<AdminSchedule | null>(null);
@@ -284,6 +293,8 @@ export function AdminPage({ api, now = Date.now }: Props) {
       {mode === "privacy" && (
         <PrivacyPanel
           api={api}
+          inLine={inLine}
+          openExternal={open}
           onBack={() => setMode("schedule")}
           onDeleted={() => setDeleted(true)}
         />
@@ -738,7 +749,13 @@ function saveCsv(filename: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function PrivacyPanel(props: { api: AdminApi; onBack: () => void; onDeleted: () => void }) {
+function PrivacyPanel(props: {
+  api: AdminApi;
+  inLine: () => boolean;
+  openExternal: (url: string) => void;
+  onBack: () => void;
+  onDeleted: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -751,6 +768,21 @@ function PrivacyPanel(props: { api: AdminApi; onBack: () => void; onDeleted: () 
     setError(null);
     setNotice(null);
     try {
+      // Inside LINE's in-app browser a blob download is trapped, so leave LINE: open a short-lived signed
+      // link in the external browser. If the server has links switched off (404), use the in-page download.
+      if (props.inLine()) {
+        let url: string | null = null;
+        try {
+          url = await props.api.exportLink(kind);
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 404)) throw e;
+        }
+        if (url) {
+          props.openExternal(url);
+          setNotice("เปิดลิงก์ดาวน์โหลดในเบราว์เซอร์ภายนอกแล้ว (ลิงก์ใช้ได้ 2 นาที)");
+          return;
+        }
+      }
       const text = await props.api.exportCsv(kind);
       saveCsv(`kiw-mai-son-${kind}.csv`, text);
       setNotice("ดาวน์โหลดไฟล์แล้ว");

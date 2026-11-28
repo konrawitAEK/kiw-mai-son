@@ -263,6 +263,10 @@ export interface Deps {
   /** Verifies a LIFF ID token; null if invalid/expired. */
   verifyIdToken(idToken: string): Promise<LiffUser | null>;
   now(): number;
+  /** HMAC key for the short-lived CSV download links (T24); the link routes answer 404 when unset. */
+  exportTokenKey?: string;
+  /** Public base URL of this API (incl. any `/functions/v1/api` prefix) used to build download links. */
+  publicBaseUrl?: string;
   /** Slot grid in minutes (default 30). */
   stepMinutes?: number;
 }
