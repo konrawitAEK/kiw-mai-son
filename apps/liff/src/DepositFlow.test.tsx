@@ -272,6 +272,7 @@ function adminApi(over: Partial<AdminApi> = {}): AdminApi {
     getSettings: vi.fn().mockResolvedValue({ promptPayId: null, depositTimeoutHours: null }),
     saveSettings: vi.fn().mockResolvedValue(undefined),
     exportCsv: vi.fn().mockResolvedValue(""),
+    exportLink: vi.fn(),
     deleteShop: vi.fn().mockResolvedValue(undefined),
     ...over,
   };

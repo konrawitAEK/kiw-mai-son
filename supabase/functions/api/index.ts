@@ -4,6 +4,7 @@
 //   supabase functions deploy api --no-verify-jwt
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, LINE_LOGIN_CHANNEL_ID, and for onboarding (T13):
 // CHANNEL_TOKEN_ENC_KEY, LIFF_ID, optional ONBOARDING_INVITE_CODE;
+// for CSV export links (T24): EXPORT_TOKEN_KEY (openssl rand -base64 32);
 // for billing (T17): FOUNDER_LINE_USER_ID, FOUNDER_PROMPTPAY_ID (names only; see .env.example).
 // Bundling note: imports below use relative paths into packages/ so `supabase functions deploy` can bundle them.
 import { createClient } from "npm:@supabase/supabase-js@2.47.10";
@@ -57,6 +58,11 @@ Deno.serve(
         : undefined,
       referral: createSupabaseReferralDb(supabase),
       verifyIdToken: createLineVerifier(Deno.env.get("LINE_LOGIN_CHANNEL_ID") ?? ""),
+      // CSV download links (T24): off unless EXPORT_TOKEN_KEY is set. Base URL is the public function URL.
+      exportTokenKey: Deno.env.get("EXPORT_TOKEN_KEY") || undefined,
+      publicBaseUrl: Deno.env.get("SUPABASE_URL")
+        ? `${Deno.env.get("SUPABASE_URL")}/functions/v1/api`
+        : undefined,
       now: () => Date.now(),
     }),
     alert,

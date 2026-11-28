@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { PRIVACY_NOTICE, SHOP_TERMS } from "@kms/core";
 import { AdminPage } from "./AdminPage.js";
 import { createAdminApi, type AdminApi } from "./admin-api.js";
+import { isLineUserAgent } from "./liff.js";
 import { LegalPage } from "./LegalPage.js";
 import { BookingPage } from "./BookingPage.js";
 import type { BookingApi } from "./api.js";
@@ -28,6 +29,7 @@ function fakeApi(over: Partial<AdminApi> = {}): AdminApi {
     getSettings: vi.fn(),
     saveSettings: vi.fn(),
     exportCsv: vi.fn().mockResolvedValue("﻿ชื่อ\r\nคุณเอ\r\n"),
+    exportLink: vi.fn(),
     deleteShop: vi.fn().mockResolvedValue(undefined),
     ...over,
   };
@@ -145,5 +147,82 @@ describe("owner data export and delete", () => {
     await api.deleteShop("ร้านสวย");
     expect(fetchFn.mock.calls[1]?.[0]).toBe("https://api.test/shops/s1/admin/delete");
     expect(JSON.parse(fetchFn.mock.calls[1]?.[1].body)).toEqual({ confirmName: "ร้านสวย" });
+  });
+
+  describe("LINE in-app browser fallback (T24)", () => {
+    const LINE_UA =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari Line/14.5.0";
+    const CHROME_UA =
+      "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36";
+
+    it("detects the LINE user agent", () => {
+      expect(isLineUserAgent(LINE_UA)).toBe(true);
+      expect(isLineUserAgent("Mozilla/5.0 Android Mobile Safari Line/14.5.0")).toBe(true);
+      expect(isLineUserAgent(CHROME_UA)).toBe(false);
+    });
+
+    async function openIn(api: AdminApi, inLine: boolean, open: (u: string) => void) {
+      const user = userEvent.setup();
+      render(<AdminPage api={api} now={() => NOW} inLine={() => inLine} openExternal={open} />);
+      await user.click(await screen.findByRole("button", { name: "ข้อมูลและความเป็นส่วนตัว" }));
+      return user;
+    }
+
+    it("inside LINE: opens the signed link externally and never builds a blob or reads the CSV", async () => {
+      const create = vi.fn(() => "blob:x");
+      Object.assign(URL, { createObjectURL: create });
+      const url = "https://api.test/shops/s1/export-download?token=abc.def";
+      const api = fakeApi({ exportLink: vi.fn().mockResolvedValue(url) });
+      const open = vi.fn();
+      const user = await openIn(api, true, open);
+      await user.click(screen.getByRole("button", { name: "ดาวน์โหลดรายชื่อลูกค้า" }));
+      await waitFor(() => expect(open).toHaveBeenCalledWith(url));
+      expect(api.exportLink).toHaveBeenCalledWith("customers");
+      expect(api.exportCsv).not.toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
+      expect(url).not.toMatch(/คุณ|U[0-9a-f]{8}/); // no customer data in the URL
+    });
+
+    it("inside LINE with links switched off (404): falls back to the in-page download", async () => {
+      const { ApiError } = await import("./api.js");
+      const create = vi.fn(() => "blob:x");
+      Object.assign(URL, { createObjectURL: create, revokeObjectURL: vi.fn() });
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      const api = fakeApi({ exportLink: vi.fn().mockRejectedValue(new ApiError(404, "x")) });
+      const open = vi.fn();
+      const user = await openIn(api, true, open);
+      await user.click(screen.getByRole("button", { name: "ดาวน์โหลดรายการจองทั้งหมด" }));
+      await waitFor(() => expect(api.exportCsv).toHaveBeenCalledWith("bookings"));
+      expect(open).not.toHaveBeenCalled();
+      click.mockRestore();
+    });
+
+    it("outside LINE: keeps the in-page download and does not ask for a link", async () => {
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      Object.assign(URL, { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
+      const api = fakeApi();
+      const open = vi.fn();
+      const user = await openIn(api, false, open);
+      await user.click(screen.getByRole("button", { name: "ดาวน์โหลดรายชื่อลูกค้า" }));
+      await waitFor(() => expect(api.exportCsv).toHaveBeenCalledWith("customers"));
+      expect(api.exportLink).not.toHaveBeenCalled();
+      expect(open).not.toHaveBeenCalled();
+      click.mockRestore();
+    });
+
+    it("API client posts the kind and returns only the URL", async () => {
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ url: "https://u", expiresAt: 1 })));
+      const api = createAdminApi({
+        baseUrl: "https://api.test",
+        shopId: "s1",
+        getIdToken: () => "tok",
+        fetchFn,
+      });
+      expect(await api.exportLink("customers")).toBe("https://u");
+      expect(fetchFn.mock.calls[0]?.[0]).toBe("https://api.test/shops/s1/admin/export-link");
+      expect(JSON.parse(fetchFn.mock.calls[0]?.[1].body)).toEqual({ kind: "customers" });
+    });
   });
 });

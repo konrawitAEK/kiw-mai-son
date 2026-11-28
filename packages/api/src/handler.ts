@@ -2,6 +2,7 @@ import { availableSlots, bangkokDayStart, toBangkokIso } from "@kms/core";
 import { createAdminRoutes } from "./admin.js";
 import { createBillingRoutes, isSubscriptionExpired } from "./billing.js";
 import { createShopRoute } from "./onboarding.js";
+import { createDataPrivacyRoutes } from "./data-privacy.js";
 import { createDepositRoutes, depositInfo } from "./deposit.js";
 import { CORS, DAY_MS, err, json, MIN_MS, MSG, UUID } from "./http.js";
 import type { Deps } from "./types.js";
@@ -40,6 +41,8 @@ export { MSG };
  *   GET  /shops/:shopId/admin/referral        (T18, only when deps.referral is set: own code, count, share text)
  *   POST /shops/:shopId/admin/referral/redeem { code }   (T18: both shops get +1 free month; Thai error on bad/own/used code)
  *   GET  /shops/:shopId/admin/export?kind=customers|bookings   (CSV download)
+ *   POST /shops/:shopId/admin/export-link     { kind }   (T24, only when deps.exportTokenKey + publicBaseUrl are set: { url, expiresAt }, 2-minute signed token)
+ *   GET  /shops/:shopId/export-download?token=   (T24, no ID token: signed owner-scoped token; 401 missing/expired/bad, 403 other shop)
  *   POST /shops/:shopId/admin/delete          { confirmName }   (deletes the shop and all its data)
  */
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
@@ -89,6 +92,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const admin = createAdminRoutes(deps);
   const createShop = deps.onboarding ? createShopRoute(deps.onboarding, deps) : null;
   const deposits = createDepositRoutes(deps);
+  const privacy = createDataPrivacyRoutes(deps);
   const billing = deps.billing ? createBillingRoutes(deps.billing) : null;
 
   async function route(req: Request): Promise<Response> {
@@ -104,6 +108,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     if (billing && method === "POST" && path === "/billing/mark-paid") {
       return billing.markPaid(req, await authenticate(req));
+    }
+
+    // T24: token-authenticated CSV download (opened in the external browser, so no Authorization header).
+    if (
+      method === "GET" &&
+      parts[0] === "shops" &&
+      parts[1] &&
+      parts[2] === "export-download" &&
+      parts.length === 3
+    ) {
+      return privacy.downloadWithToken(parts[1], url);
     }
 
     if (parts[0] === "shops" && parts[1] && UUID.test(parts[1]) && parts[2] === "admin") {

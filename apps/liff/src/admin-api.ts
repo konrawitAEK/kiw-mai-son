@@ -89,6 +89,11 @@ export interface AdminApi {
   saveSettings(settings: AdminSettings): Promise<void>;
   /** CSV text (UTF-8, BOM included) of the shop's customers or bookings. */
   exportCsv(kind: ExportKind): Promise<string>;
+  /**
+   * Asks the server for a short-lived signed download URL (T24) to open in the external browser.
+   * Throws ApiError(404) when the server has the feature switched off.
+   */
+  exportLink(kind: ExportKind): Promise<string>;
   /** Permanently deletes the shop and all its data; `confirmName` must equal the shop name. */
   deleteShop(confirmName: string): Promise<void>;
   blockTime(input: {
@@ -185,6 +190,9 @@ export function createAdminApi(opts: {
     },
     exportCsv(kind) {
       return call<string>(`/admin/export?kind=${kind}`, "GET", undefined, "text");
+    },
+    async exportLink(kind) {
+      return (await call<{ url: string }>("/admin/export-link", "POST", { kind })).url;
     },
     async deleteShop(confirmName) {
       await call("/admin/delete", "POST", { confirmName });

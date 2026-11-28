@@ -222,6 +222,10 @@ export function createMockAdminApi(): AdminApi {
     },
     exportCsv: async (kind) =>
       kind === "customers" ? "\uFEFFชื่อ\r\nคุณเอ\r\n" : "\uFEFFรหัสการจอง\r\n1\r\n",
+    // Dev mock has no signed links: the 404 makes the page use the in-page download.
+    exportLink: async () => {
+      throw new ApiError(404, "ไม่พบข้อมูลที่ต้องการ");
+    },
     deleteShop: async () => {},
     blockTime: async (i) => {
       schedule.timeOff.push({ id: String(Date.now()), ...i, reason: i.reason || null });
