@@ -42,6 +42,17 @@ export interface AdminSchedule {
   timeOff: AdminTimeOff[];
 }
 
+export type PlanId = "monthly" | "yearly";
+export interface AdminBilling {
+  status: "trial" | "active" | "expired";
+  /** Thai one-liner for the screen. */
+  label: string;
+  accessUntil: string;
+  daysLeft: number;
+  plan: PlanId | null;
+  plans: Record<PlanId, { price: number; label: string; promptPayPayload: string | null }>;
+}
+
 export type ExportKind = "customers" | "bookings";
 
 export interface AdminApi {
@@ -58,6 +69,8 @@ export interface AdminApi {
   /** Slip image the customer uploaded; null if there is none. */
   getSlip(bookingId: string): Promise<{ contentType: string; dataBase64: string } | null>;
   decideDeposit(bookingId: string, decision: "confirm" | "reject"): Promise<void>;
+  /** Subscription status and PromptPay QR payloads (199 / 1,990 THB). */
+  getBilling(): Promise<AdminBilling>;
   getSettings(): Promise<AdminSettings>;
   saveSettings(settings: AdminSettings): Promise<void>;
   /** CSV text (UTF-8, BOM included) of the shop's customers or bookings. */
@@ -140,6 +153,9 @@ export function createAdminApi(opts: {
     },
     async decideDeposit(bookingId, decision) {
       await call(`/admin/bookings/${encodeURIComponent(bookingId)}/deposit`, "POST", { decision });
+    },
+    async getBilling() {
+      return (await call<{ billing: AdminBilling }>("/admin/billing")).billing;
     },
     getSettings() {
       return call<AdminSettings>("/admin/settings");

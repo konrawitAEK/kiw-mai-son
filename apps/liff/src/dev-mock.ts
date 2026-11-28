@@ -1,4 +1,4 @@
-import type { Service, Slot, Staff } from "@kms/core";
+import { promptPayPayload, type Service, type Slot, type Staff } from "@kms/core";
 import { ApiError, type BookingApi, type DepositInfo } from "./api.js";
 import type { AdminApi, AdminSchedule, AdminSettings } from "./admin-api.js";
 import type { OnboardingApi, SetupStatus } from "./onboarding-api.js";
@@ -134,6 +134,25 @@ export function createMockAdminApi(): AdminApi {
         b.depositStatus = "paid";
       } else b.depositStatus = "rejected";
     },
+    getBilling: async () => ({
+      status: "trial",
+      label: "ทดลองใช้ฟรี ถึง 28 ธ.ค. 2569 (เหลือ 7 วัน)",
+      accessUntil: "2026-12-28T03:00:00.000Z",
+      daysLeft: 7,
+      plan: null,
+      plans: {
+        monthly: {
+          price: 199,
+          label: "รายเดือน",
+          promptPayPayload: promptPayPayload("0812345678", { amount: 199 }),
+        },
+        yearly: {
+          price: 1990,
+          label: "รายปี",
+          promptPayPayload: promptPayPayload("0812345678", { amount: 1990 }),
+        },
+      },
+    }),
     getSettings: async () => settings,
     saveSettings: async (v) => {
       settings = { ...v };

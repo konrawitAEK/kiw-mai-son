@@ -263,6 +263,7 @@ function adminApi(over: Partial<AdminApi> = {}): AdminApi {
     blockTime: vi.fn(),
     getSlip: vi.fn().mockResolvedValue({ contentType: "image/png", dataBase64: "AQID" }),
     decideDeposit: vi.fn().mockResolvedValue(undefined),
+    getBilling: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({ promptPayId: null, depositTimeoutHours: null }),
     saveSettings: vi.fn().mockResolvedValue(undefined),
     exportCsv: vi.fn().mockResolvedValue(""),

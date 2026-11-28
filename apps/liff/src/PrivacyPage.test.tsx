@@ -22,6 +22,7 @@ function fakeApi(over: Partial<AdminApi> = {}): AdminApi {
     blockTime: vi.fn(),
     getSlip: vi.fn().mockResolvedValue(null),
     decideDeposit: vi.fn(),
+    getBilling: vi.fn(),
     getSettings: vi.fn(),
     saveSettings: vi.fn(),
     exportCsv: vi.fn().mockResolvedValue("﻿ชื่อ\r\nคุณเอ\r\n"),
