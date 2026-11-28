@@ -388,3 +388,14 @@ ul {
 .danger:disabled {
   opacity: 0.5;
 }
+
+/* T21: action buttons inside a booking card */
+.card .secondary,
+.card .actions {
+  box-sizing: border-box;
+  margin-top: 8px;
+}
+.card .actions {
+  display: grid;
+  gap: 8px;
+}

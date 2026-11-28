@@ -5,6 +5,7 @@ import { OnboardingPage } from "./OnboardingPage.js";
 import { createOnboardingApi, type OnboardingApi } from "./onboarding-api.js";
 import { BookingPage } from "./BookingPage.js";
 import { createBookingApi, type BookingApi } from "./api.js";
+import { MyBookingsPage } from "./MyBookingsPage.js";
 import { LegalPage } from "./LegalPage.js";
 import { closeLiff, initLiff } from "./liff.js";
 
@@ -18,6 +19,7 @@ export function App() {
   const page = new URLSearchParams(window.location.search).get("page");
   const isAdmin = page === "admin";
   const isOnboarding = page === "onboarding";
+  const isMyBookings = page === "my-bookings";
   const isLegal = page === "privacy" || page === "terms";
   const shopId = new URLSearchParams(window.location.search).get("shop") ?? "";
   const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
@@ -55,7 +57,13 @@ export function App() {
   // Legal pages are public static text: no LIFF login, no shop id needed.
   if (isLegal) return <LegalPage kind={page} />;
   if (useMock) {
-    return isOnboarding ? <MockOnboarding /> : isAdmin ? <MockAdmin /> : <MockBooking />;
+    return isOnboarding ? (
+      <MockOnboarding />
+    ) : isAdmin ? (
+      <MockAdmin />
+    ) : (
+      <MockBooking myBookings={isMyBookings} />
+    );
   }
   // Shop onboarding: /?page=onboarding (optionally &shop=<id> to resume). No shop id needed to start.
   if (isOnboarding) {
@@ -68,15 +76,18 @@ export function App() {
   if (!ready) return <p className="page">กำลังโหลด...</p>;
   // Owner admin: /?page=admin&shop=<id>. The server enforces owner-only access (403 for anyone else).
   if (isAdmin) return <AdminPage api={adminApi} />;
+  // Rich-menu "นัดของฉัน": /?page=my-bookings&shop=<id>
+  if (isMyBookings) return <MyBookingsPage api={api} onClose={closeLiff} />;
   return <BookingPage api={api} onClose={closeLiff} />;
 }
 
-function MockBooking() {
+function MockBooking({ myBookings }: { myBookings: boolean }) {
   const [api, setApi] = useState<BookingApi | null>(null);
   useEffect(() => {
     void import("./dev-mock.js").then((m) => setApi(m.createMockApi()));
   }, []);
-  return api ? <BookingPage api={api} /> : null;
+  if (!api) return null;
+  return myBookings ? <MyBookingsPage api={api} /> : <BookingPage api={api} />;
 }
 
 function MockAdmin() {

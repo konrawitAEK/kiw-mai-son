@@ -23,6 +23,19 @@ export interface BookingResult {
   deposit?: DepositInfo | null;
 }
 
+/** One upcoming booking of the signed-in customer (GET /shops/:id/my-bookings). */
+export interface MyBooking {
+  id: string;
+  serviceName: string;
+  staffName: string;
+  /** +07:00 ISO. */
+  start: string;
+  end: string;
+  status: "pending" | "confirmed" | "cancelled" | "completed" | "no_show";
+  depositStatus: DepositStatus;
+  depositAmount: number;
+}
+
 export interface SlipUpload {
   contentType: "image/jpeg" | "image/png" | "image/webp";
   dataBase64: string;
@@ -50,6 +63,10 @@ export interface BookingApi {
   /** Current deposit state of the customer's own booking. */
   getDeposit(bookingId: string): Promise<{ bookingStatus: string; deposit: DepositInfo }>;
   uploadSlip(bookingId: string, slip: SlipUpload): Promise<DepositInfo>;
+  /** T21: the customer's own upcoming bookings in this shop. */
+  listMyBookings(): Promise<MyBooking[]>;
+  /** T21: cancel the customer's own booking. */
+  cancelBooking(bookingId: string): Promise<void>;
 }
 
 export const GENERIC_ERROR = "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
@@ -116,6 +133,21 @@ export function createBookingApi(opts: {
       return call(
         `/bookings/${encodeURIComponent(bookingId)}/deposit`,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+        true,
+      );
+    },
+    async listMyBookings() {
+      const token = opts.getIdToken();
+      const r = await call<{ bookings: MyBooking[] }>("/my-bookings", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      return r.bookings;
+    },
+    async cancelBooking(bookingId) {
+      const token = opts.getIdToken();
+      await call(
+        `/bookings/${encodeURIComponent(bookingId)}/cancel`,
+        { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} },
         true,
       );
     },

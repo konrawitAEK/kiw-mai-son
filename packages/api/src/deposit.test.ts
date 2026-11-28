@@ -60,6 +60,7 @@ function fakeDb(opts: { deposit: number; payment?: ShopPayment }) {
     cancelBooking: async () => {
       if (booking) booking.status = "cancelled";
     },
+    listCustomerBookings: async () => [],
     getShopOwner: async (id) => (id === SHOP ? "UOWNER" : null),
     createPhoneCustomer: async () => "c",
     listSchedule: async () => ({ staff: [], bookings: [], timeOff: [] }),

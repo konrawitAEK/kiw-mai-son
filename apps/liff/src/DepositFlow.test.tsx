@@ -47,6 +47,8 @@ function bookingApi(over: Partial<BookingApi> = {}): BookingApi {
     }),
     getDeposit: vi.fn().mockResolvedValue({ bookingStatus: "pending", deposit }),
     uploadSlip: vi.fn().mockResolvedValue({ ...deposit, status: "submitted" }),
+    listMyBookings: vi.fn(),
+    cancelBooking: vi.fn(),
     ...over,
   };
 }

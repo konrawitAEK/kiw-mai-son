@@ -1,5 +1,5 @@
 import { promptPayPayload, type Service, type Slot, type Staff } from "@kms/core";
-import { ApiError, type BookingApi, type DepositInfo } from "./api.js";
+import { ApiError, type BookingApi, type DepositInfo, type MyBooking } from "./api.js";
 import type { AdminApi, AdminSchedule, AdminSettings } from "./admin-api.js";
 import type { OnboardingApi, SetupStatus } from "./onboarding-api.js";
 
@@ -20,6 +20,30 @@ export function createMockApi(): BookingApi {
       "00020101021229370016A000000677010111011300668123456785303764540600300.005802TH63040000",
     timeoutHours: 24,
   };
+  const day = (offset: number) =>
+    new Date(Date.now() + 7 * 3600_000 + offset * 86_400_000).toISOString().slice(0, 10);
+  let mine: MyBooking[] = [
+    {
+      id: "m1",
+      serviceName: "ตัดผมชาย",
+      staffName: "พี่แอน",
+      start: `${day(1)}T14:00:00+07:00`,
+      end: `${day(1)}T14:30:00+07:00`,
+      status: "confirmed",
+      depositStatus: "none",
+      depositAmount: 0,
+    },
+    {
+      id: "m2",
+      serviceName: "ทำสีผม",
+      staffName: "พี่บอย",
+      start: `${day(3)}T10:00:00+07:00`,
+      end: `${day(3)}T12:00:00+07:00`,
+      status: "pending",
+      depositStatus: "pending",
+      depositAmount: 300,
+    },
+  ];
   return {
     listServices: async () => [
       { id: "s1", shopId, name: "ตัดผมชาย", durationMin: 30, price: 250, deposit: 0 },
@@ -52,6 +76,10 @@ export function createMockApi(): BookingApi {
     uploadSlip: async () => {
       deposit = { ...deposit, status: "submitted" };
       return deposit;
+    },
+    listMyBookings: async () => mine,
+    cancelBooking: async (id) => {
+      mine = mine.filter((b) => b.id !== id);
     },
   };
 }

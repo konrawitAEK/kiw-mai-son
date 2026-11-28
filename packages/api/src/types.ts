@@ -59,6 +59,19 @@ export interface SlipImage {
   data: Uint8Array;
 }
 
+/** One row of the customer's "นัดของฉัน" list (T21). */
+export interface CustomerBooking {
+  id: string;
+  serviceName: string;
+  staffName: string;
+  /** +07:00 ISO. */
+  start: string;
+  end: string;
+  status: Booking["status"];
+  depositStatus: DepositStatus;
+  depositAmount: number;
+}
+
 /** One row of the owner's schedule view. */
 export interface ScheduleBooking {
   id: string;
@@ -113,6 +126,12 @@ export interface Db {
   insertBooking(input: InsertBookingInput): Promise<InsertResult>;
   getBooking(bookingId: string): Promise<BookingRecord | null>;
   cancelBooking(bookingId: string): Promise<void>;
+  /** T21: the customer's own non-cancelled bookings in this shop that end after `fromIso`, ordered by start. */
+  listCustomerBookings(
+    shopId: string,
+    lineUserId: string,
+    fromIso: string,
+  ): Promise<CustomerBooking[]>;
   /** `shops.owner_line_user_id`, or null if the shop does not exist. */
   getShopOwner(shopId: string): Promise<string | null>;
   /** Owner admin: phone-only customer (no LINE id). */
