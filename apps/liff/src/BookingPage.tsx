@@ -3,7 +3,7 @@ import type { Service, Slot, Staff } from "@kms/core";
 import { ApiError, GENERIC_ERROR, type BookingApi, type BookingResult } from "./api.js";
 import { DepositPanel } from "./DepositPanel.js";
 import { LegalLinks } from "./LegalPage.js";
-import { dayLabel, priceLabel, timeLabel, upcomingDays } from "./format.js";
+import { dayLabel, priceLabel, timeLabel, timeRangeLabel, upcomingDays } from "./format.js";
 
 type Step = "service" | "staff" | "date" | "time" | "confirm" | "done";
 const STEPS: Step[] = ["service", "staff", "date", "time", "confirm"];
@@ -251,9 +251,7 @@ export function BookingPage({ api, now = Date.now, onClose }: Props) {
             <dt>วันที่</dt>
             <dd>{dayLabel(date)}</dd>
             <dt>เวลา</dt>
-            <dd>
-              {timeLabel(slot.start)} - {timeLabel(slot.end)} น.
-            </dd>
+            <dd>{timeRangeLabel(slot.start, service.durationMin)} น.</dd>
             <dt>ราคา</dt>
             <dd>{priceLabel(service.price)}</dd>
             {service.deposit > 0 && (
@@ -286,9 +284,7 @@ export function BookingPage({ api, now = Date.now, onClose }: Props) {
             <dt>วันที่</dt>
             <dd>{dayLabel(result.start.slice(0, 10))}</dd>
             <dt>เวลา</dt>
-            <dd>
-              {timeLabel(result.start)} - {timeLabel(result.end)} น.
-            </dd>
+            <dd>{timeRangeLabel(result.start, service.durationMin)} น.</dd>
           </dl>
           {result.deposit && (
             <DepositPanel api={api} bookingId={result.id} initial={result.deposit} />

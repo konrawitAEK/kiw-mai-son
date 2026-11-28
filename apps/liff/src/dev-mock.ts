@@ -3,6 +3,12 @@ import { ApiError, type BookingApi, type DepositInfo } from "./api.js";
 import type { AdminApi, AdminSchedule, AdminSettings } from "./admin-api.js";
 import type { OnboardingApi, SetupStatus } from "./onboarding-api.js";
 
+/** ISO (+07:00) string `minutes` after `iso`, keeping the +07:00 offset. */
+function addMinutesIso(iso: string, minutes: number): string {
+  const bkkMs = Date.parse(iso) + minutes * 60_000 + 7 * 60 * 60 * 1000;
+  return `${new Date(bkkMs).toISOString().slice(0, 19)}+07:00`;
+}
+
 /** Fake API for `pnpm --filter @kms/liff dev` with `?mock=1` (dev only; never bundled in builds). */
 export function createMockApi(): BookingApi {
   const shopId = "mock";
@@ -26,7 +32,7 @@ export function createMockApi(): BookingApi {
     listSlots: async (_s, date): Promise<Slot[]> =>
       ["10:00", "10:30", "11:00", "14:00", "15:30"].map((t, i) => ({
         start: `${date}T${t}:00+07:00`,
-        end: `${date}T${t}:00+07:00`,
+        end: addMinutesIso(`${date}T${t}:00+07:00`, 30),
         staffIds: ["a", "b"].slice(0, 1 + (i % 2)),
       })),
     createBooking: async (input) => {
@@ -36,7 +42,7 @@ export function createMockApi(): BookingApi {
       return {
         id: "mock",
         start: input.start,
-        end: input.start,
+        end: addMinutesIso(input.start, input.serviceId === "s2" ? 120 : 30),
         staffId: input.staffId ?? "a",
         serviceId: input.serviceId,
         deposit: input.serviceId === "s2" ? deposit : null,
@@ -117,7 +123,7 @@ export function createMockAdminApi(): AdminApi {
         customerName: i.customerName,
         customerPhone: i.phone || null,
         start: i.start,
-        end: i.start,
+        end: addMinutesIso(i.start, i.serviceId === "s2" ? 120 : 30),
         status: "confirmed",
         channel: "owner",
       });
