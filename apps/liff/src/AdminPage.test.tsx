@@ -267,3 +267,34 @@ describe("AdminPage cancel", () => {
     expect(screen.getByRole("button", { name: /ยกเลิกคิว คุณเอ/ })).toBeTruthy();
   });
 });
+
+describe("AdminPage expired-subscription banner (T23)", () => {
+  const billing = (status: "trial" | "active" | "expired") => ({
+    status,
+    label: "x",
+    accessUntil: "2026-12-01T00:00:00Z",
+    daysLeft: 0,
+    plan: null,
+    plans: {
+      monthly: { price: 199, label: "รายเดือน", promptPayPayload: null },
+      yearly: { price: 1990, label: "รายปี", promptPayPayload: null },
+    },
+  });
+
+  it("shows the banner when expired", async () => {
+    const api = fakeApi({ getBilling: vi.fn().mockResolvedValue(billing("expired")) });
+    render(<AdminPage api={api} now={() => NOW} />);
+    expect(await screen.findByRole("alert", { name: "แพ็กเกจหมดอายุ" })).toBeTruthy();
+  });
+
+  it("shows no banner for trial and active shops", async () => {
+    for (const status of ["trial", "active"] as const) {
+      cleanup();
+      const api = fakeApi({ getBilling: vi.fn().mockResolvedValue(billing(status)) });
+      render(<AdminPage api={api} now={() => NOW} />);
+      await screen.findByRole("region", { name: "พี่แอน" });
+      await waitFor(() => expect(api.getBilling).toHaveBeenCalled());
+      expect(screen.queryByRole("alert", { name: "แพ็กเกจหมดอายุ" })).toBeNull();
+    }
+  });
+});

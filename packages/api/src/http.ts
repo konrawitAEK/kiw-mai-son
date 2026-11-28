@@ -14,6 +14,10 @@ export const MSG = {
   noDeposit: "การจองนี้ไม่มีมัดจำที่ต้องชำระ",
   depositClosed: "ไม่สามารถทำรายการนี้ได้ในสถานะปัจจุบันของการจอง",
   promptPayBad: "PromptPay ID ไม่ถูกต้อง (เบอร์โทร 10 หลัก หรือเลขบัตรประชาชน/ผู้เสียภาษี 13 หลัก)",
+  /** T23: customer-facing; does not reveal billing details. */
+  shopClosedBookings: "ร้านนี้ยังไม่เปิดรับจองออนไลน์ในขณะนี้ กรุณาติดต่อร้านโดยตรง",
+  /** T23: owner-facing. */
+  subscriptionExpired: 'แพ็กเกจของร้านหมดอายุ กรุณาต่ออายุที่เมนู "ค่าบริการ" ก่อนรับจองใหม่',
   server: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
 } as const;
 

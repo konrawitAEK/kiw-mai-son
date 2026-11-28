@@ -1,6 +1,6 @@
 import { availableSlots, bangkokDayStart, toBangkokIso } from "@kms/core";
 import { createAdminRoutes } from "./admin.js";
-import { createBillingRoutes } from "./billing.js";
+import { createBillingRoutes, isSubscriptionExpired } from "./billing.js";
 import { createShopRoute } from "./onboarding.js";
 import { createDepositRoutes, depositInfo } from "./deposit.js";
 import { CORS, DAY_MS, err, json, MIN_MS, MSG, UUID } from "./http.js";
@@ -152,6 +152,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   async function createBooking(req: Request, shopId: string): Promise<Response> {
     const user = await authenticate(req);
     if (!user) return err(401, MSG.unauthorized);
+    // T23: an expired subscription stops new bookings (existing ones stay).
+    if (deps.billing && (await isSubscriptionExpired(deps.billing, shopId))) {
+      return err(402, MSG.shopClosedBookings);
+    }
 
     let body: { serviceId?: unknown; staffId?: unknown; start?: unknown };
     try {

@@ -69,6 +69,15 @@ export async function billingInfo(
   };
 }
 
+/**
+ * T23: true when the shop's subscription is expired (neither trial nor paid period running), so new bookings
+ * must be refused. Trial and paid shops, and shops without a subscription row, are not blocked.
+ */
+export async function isSubscriptionExpired(b: BillingRouteDeps, shopId: string): Promise<boolean> {
+  const sub = await b.db.getSubscription(shopId);
+  return sub !== null && subscriptionState(sub, b.now()).status === "expired";
+}
+
 async function readJson(req: Request): Promise<Record<string, unknown> | null> {
   try {
     const b: unknown = await req.json();

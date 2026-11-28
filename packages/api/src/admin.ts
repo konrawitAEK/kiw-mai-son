@@ -1,5 +1,5 @@
 import { bangkokDayStart, toBangkokIso } from "@kms/core";
-import { createBillingRoutes } from "./billing.js";
+import { createBillingRoutes, isSubscriptionExpired } from "./billing.js";
 import { createDataPrivacyRoutes } from "./data-privacy.js";
 import { createDepositRoutes } from "./deposit.js";
 import { DAY_MS, err, json, MIN_MS, MSG, UUID } from "./http.js";
@@ -114,6 +114,9 @@ export function createAdminRoutes(deps: Deps) {
   };
 
   async function addBooking(req: Request, shopId: string): Promise<Response> {
+    if (deps.billing && (await isSubscriptionExpired(deps.billing, shopId))) {
+      return err(402, MSG.subscriptionExpired);
+    }
     const body = await readJson(req);
     if (!body) return err(400, MSG.badRequest);
     const { serviceId, staffId, start, customerName, phone } = body;
