@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Service, Slot, Staff } from "@kms/core";
 import { ApiError, GENERIC_ERROR, type BookingApi, type BookingResult } from "./api.js";
 import { DepositPanel } from "./DepositPanel.js";
+import { LegalLinks } from "./LegalPage.js";
 import { dayLabel, priceLabel, timeLabel, upcomingDays } from "./format.js";
 
 type Step = "service" | "staff" | "date" | "time" | "confirm" | "done";
@@ -305,6 +306,8 @@ export function BookingPage({ api, now = Date.now, onClose }: Props) {
           ย้อนกลับ
         </button>
       )}
+
+      <LegalLinks />
     </main>
   );
 }

@@ -81,6 +81,10 @@ function fakeDb(opts: { deposit: number; payment?: ShopPayment }) {
         booking.depositStatus = "paid";
       } else booking.depositStatus = "rejected";
     },
+    getShopName: async () => "ร้านทดสอบ",
+    exportCustomers: async () => [],
+    exportBookings: async () => [],
+    deleteShop: async () => {},
   };
   return { db, state: () => booking, slips, payment: () => payment };
 }

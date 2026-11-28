@@ -334,3 +334,36 @@ ul {
   justify-items: center;
   margin: 12px 0;
 }
+.legal h3 {
+  font-size: 16px;
+  margin: 20px 0 4px;
+}
+.legal p {
+  line-height: 1.6;
+  margin: 6px 0;
+}
+.legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 24px;
+  font-size: 14px;
+}
+.legal-links a {
+  color: #4b5563;
+  display: inline-block;
+  padding: 10px 0;
+}
+.danger {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: #a12020;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.danger:disabled {
+  opacity: 0.5;
+}

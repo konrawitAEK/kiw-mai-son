@@ -28,3 +28,5 @@ export * from "./types.js";
 export { availableSlots, bangkokDayStart, toBangkokIso } from "./slots.js";
 export * from "./messages.js";
 export * from "./promptpay.js";
+export { toCsv } from "./csv.js";
+export * from "./legal.js";

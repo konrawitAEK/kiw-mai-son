@@ -42,6 +42,8 @@ export interface AdminSchedule {
   timeOff: AdminTimeOff[];
 }
 
+export type ExportKind = "customers" | "bookings";
+
 export interface AdminApi {
   listServices(): Promise<Service[]>;
   getSchedule(from: string, days: number): Promise<AdminSchedule>;
@@ -58,6 +60,10 @@ export interface AdminApi {
   decideDeposit(bookingId: string, decision: "confirm" | "reject"): Promise<void>;
   getSettings(): Promise<AdminSettings>;
   saveSettings(settings: AdminSettings): Promise<void>;
+  /** CSV text (UTF-8, BOM included) of the shop's customers or bookings. */
+  exportCsv(kind: ExportKind): Promise<string>;
+  /** Permanently deletes the shop and all its data; `confirmName` must equal the shop name. */
+  deleteShop(confirmName: string): Promise<void>;
   blockTime(input: {
     staffId: string | null;
     start: string;
@@ -75,7 +81,12 @@ export function createAdminApi(opts: {
   const f = opts.fetchFn ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
   const shop = `${opts.baseUrl.replace(/\/+$/, "")}/shops/${encodeURIComponent(opts.shopId)}`;
 
-  async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  async function call<T>(
+    path: string,
+    method = "GET",
+    body?: unknown,
+    as: "json" | "text" = "json",
+  ): Promise<T> {
     const token = opts.getIdToken();
     let res: Response;
     try {
@@ -90,6 +101,7 @@ export function createAdminApi(opts: {
     } catch {
       throw new ApiError(0, GENERIC_ERROR);
     }
+    if (as === "text" && res.ok) return (await res.text()) as T;
     let data: unknown = null;
     try {
       data = await res.json();
@@ -134,6 +146,12 @@ export function createAdminApi(opts: {
     },
     async saveSettings(settings) {
       await call("/admin/settings", "POST", settings);
+    },
+    exportCsv(kind) {
+      return call<string>(`/admin/export?kind=${kind}`, "GET", undefined, "text");
+    },
+    async deleteShop(confirmName) {
+      await call("/admin/delete", "POST", { confirmName });
     },
     async blockTime(input) {
       await call("/admin/time-off", "POST", input);

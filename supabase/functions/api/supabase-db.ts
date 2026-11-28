@@ -6,6 +6,8 @@ import type { Booking, Service, Staff, TimeOff, WorkingHours } from "@kms/core";
 import type {
   BookingRecord,
   Db,
+  ExportBooking,
+  ExportCustomer,
   ScheduleBooking,
   TimeOffRecord,
 } from "../../../packages/api/src/types.ts";
@@ -283,6 +285,60 @@ export function createSupabaseDb(sb: Client): Db {
           .single(),
       );
       return { id: r.id, staffId: i.staffId, start: i.start, end: i.end, reason: i.reason };
+    },
+    async getShopName(shopId) {
+      const r: Row | null = check(
+        await sb.from("shops").select("name").eq("id", shopId).maybeSingle(),
+      );
+      return r ? r.name : null;
+    },
+    async exportCustomers(shopId) {
+      const rows: Row[] = check(
+        await sb
+          .from("customers")
+          .select("display_name, line_user_id, phone, created_at")
+          .eq("shop_id", shopId)
+          .order("created_at"),
+      );
+      return rows.map(
+        (r): ExportCustomer => ({
+          displayName: r.display_name,
+          lineUserId: r.line_user_id,
+          phone: r.phone,
+          createdAt: toBangkokIso(Date.parse(r.created_at)),
+        }),
+      );
+    },
+    async exportBookings(shopId) {
+      const rows: Row[] = check(
+        await sb
+          .from("bookings")
+          .select(
+            "id, during, status, channel, deposit_status, deposit_amount, created_at, services(name), staff(name), customers(display_name, phone)",
+          )
+          .eq("shop_id", shopId),
+      );
+      return rows
+        .map(
+          (r): ExportBooking => ({
+            id: r.id,
+            ...parseBangkokRange(r.during),
+            status: r.status,
+            channel: r.channel,
+            serviceName: r.services?.name ?? "",
+            staffName: r.staff?.name ?? "",
+            customerName: r.customers?.display_name ?? "",
+            customerPhone: r.customers?.phone ?? null,
+            depositStatus: r.deposit_status,
+            depositAmount: r.deposit_amount,
+            createdAt: toBangkokIso(Date.parse(r.created_at)),
+          }),
+        )
+        .sort((a, b) => a.start.localeCompare(b.start));
+    },
+    async deleteShop(shopId) {
+      // Every table references shops(id) ON DELETE CASCADE (see migrations), so this removes everything.
+      check(await sb.from("shops").delete().eq("id", shopId));
     },
     async getShopPayment(shopId) {
       const r: Row | null = check(

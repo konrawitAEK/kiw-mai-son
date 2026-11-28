@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "qr": "node scripts/make-qr.mjs"
+    "qr": "node scripts/make-qr.mjs",
+    "legal": "node scripts/make-legal.mjs"
   },
   "devDependencies": {
     "qrcode": "1.5.4"

@@ -1,4 +1,5 @@
 import { bangkokDayStart, toBangkokIso } from "@kms/core";
+import { createDataPrivacyRoutes } from "./data-privacy.js";
 import { createDepositRoutes } from "./deposit.js";
 import { DAY_MS, err, json, MIN_MS, MSG, UUID } from "./http.js";
 import type { Deps } from "./types.js";
@@ -23,6 +24,7 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
  */
 export function createAdminRoutes(deps: Deps) {
   const deposits = createDepositRoutes(deps);
+  const privacy = createDataPrivacyRoutes(deps);
 
   /** Booking of this shop, or null (a booking of another shop looks the same as a missing one). */
   async function shopBooking(shopId: string, id: string) {
@@ -83,6 +85,12 @@ export function createAdminRoutes(deps: Deps) {
     if (a === "settings" && rest.length === 1) {
       if (req.method === "GET") return deposits.adminGetSettings(shopId);
       if (req.method === "POST") return deposits.adminSaveSettings(req, shopId);
+    }
+    if (req.method === "GET" && a === "export" && rest.length === 1) {
+      return privacy.exportCsv(shopId, url);
+    }
+    if (req.method === "POST" && a === "delete" && rest.length === 1) {
+      return privacy.deleteShop(req, shopId);
     }
     return err(404, MSG.notFound);
   };

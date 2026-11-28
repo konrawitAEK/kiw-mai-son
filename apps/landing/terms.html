@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ข้อตกลงการประมวลผลข้อมูลสำหรับร้านค้า - คิวไม่ซ้อน</title>
+<meta name="description" content="ข้อตกลงการประมวลผลข้อมูลสำหรับร้านค้า ของระบบจองคิว คิวไม่ซ้อน" />
+<meta name="theme-color" content="#06a755" />
+<style>
+:root { --green: #05803f; --ink: #1a1a1a; --muted: #4d4d4d; --line: #dfe7e2; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Sarabun", "Noto Sans Thai", "Thonburi", "Leelawadee UI", "Tahoma", system-ui, sans-serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fff; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 0 16px 40px; }
+header { padding: 14px 0; border-bottom: 1px solid var(--line); }
+header a { font-weight: 700; font-size: 20px; color: var(--green); text-decoration: none; }
+h1 { font-size: 26px; line-height: 1.35; margin: 24px 0 4px; }
+h2 { font-size: 19px; margin: 28px 0 4px; }
+p { margin: 8px 0; }
+.note { color: var(--muted); font-size: 15px; }
+nav { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 16px; }
+nav a { color: var(--green); display: inline-block; padding: 8px 16px 8px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><a href="index.html">คิวไม่ซ้อน</a></header>
+<main>
+<h1>ข้อตกลงการประมวลผลข้อมูลสำหรับร้านค้า</h1>
+<p class="note">ปรับปรุงล่าสุด 28 พ.ย. 2569</p>
+<section>
+<h2>บทบาทของแต่ละฝ่าย</h2>
+<p>ร้านเป็นผู้ควบคุมข้อมูลส่วนบุคคลของลูกค้าร้าน คิวไม่ซ้อนเป็นผู้ประมวลผลข้อมูล ตามมาตรา 40 ของ PDPA</p>
+<p>คิวไม่ซ้อนประมวลผลข้อมูลตามวัตถุประสงค์ของบริการนี้เท่านั้น คือ จองคิว เตือนนัด และตรวจมัดจำ</p>
+</section>
+<section>
+<h2>หน้าที่ของร้าน</h2>
+<p>ร้านต้องแจ้งลูกค้าเรื่องการเก็บและใช้ข้อมูล โดยแสดงลิงก์ประกาศความเป็นส่วนตัวของคิวไม่ซ้อนซึ่งอยู่ในหน้าจอง และตอบคำขอใช้สิทธิของลูกค้า</p>
+<p>ร้านต้องเก็บรักษา LINE channel token ที่ได้รับจาก LINE Developers และไม่เปิดเผยให้ผู้อื่น และมีหน้าที่ไม่เพิ่มข้อมูลเกินจำเป็นของลูกค้าเข้าระบบ</p>
+</section>
+<section>
+<h2>หน้าที่ของคิวไม่ซ้อน</h2>
+<p>เก็บ LINE channel token แบบเข้ารหัส และจำกัดการเข้าถึงข้อมูลของร้านให้เจ้าของร้านเท่านั้น</p>
+<p>ไม่นำข้อมูลลูกค้าของร้านไปใช้เพื่อการอื่น ไม่ขาย และไม่เปิดเผยแก่บุคคลที่สาม ยกเว้นผู้ให้บริการโครงสร้างพื้นฐานที่จำเป็นต่อการให้บริการ หรือเมื่อกฎหมายกำหนด</p>
+<p>แจ้งร้านโดยเร็วหากพบเหตุข้อมูลรั่วไหลที่กระทบข้อมูลของร้าน</p>
+</section>
+<section>
+<h2>ส่งออกและลบข้อมูล</h2>
+<p>เจ้าของร้านดาวน์โหลดข้อมูลลูกค้าและการจองเป็นไฟล์ CSV ได้ตลอดเวลาที่หน้าเจ้าของร้านในเมนู ข้อมูลและความเป็นส่วนตัว</p>
+<p>เจ้าของร้านลบร้านได้เองจากเมนูเดียวกัน การลบจะลบข้อมูลร้าน บริการ ช่าง ลูกค้า การจอง และสลิปทั้งหมดทันทีและกู้คืนไม่ได้ โปรดดาวน์โหลด CSV ก่อนลบ</p>
+</section>
+<section>
+<h2>ติดต่อ</h2>
+<p>สอบถามหรือแจ้งเรื่องข้อมูลส่วนบุคคลได้ที่ [ใส่อีเมลหรือ LINE สำหรับติดต่อผู้พัฒนา]</p>
+</section>
+</main>
+<nav aria-label="เอกสารอื่น">
+<a href="index.html">กลับหน้าแรก</a>
+<a href="privacy.html">ประกาศความเป็นส่วนตัว</a>
+</nav>
+</div>
+</body>
+</html>

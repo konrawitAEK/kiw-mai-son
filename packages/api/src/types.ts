@@ -124,6 +124,44 @@ export interface Db {
   getSlip(bookingId: string): Promise<SlipImage | null>;
   /** "paid" -> status confirmed + deposit paid; "rejected" -> deposit rejected (booking stays pending). */
   decideDeposit(bookingId: string, decision: "paid" | "rejected"): Promise<void>;
+  /** `shops.name`, or null if the shop does not exist. */
+  getShopName(shopId: string): Promise<string | null>;
+  /** Data export: all customers of the shop. */
+  exportCustomers(shopId: string): Promise<ExportCustomer[]>;
+  /** Data export: all bookings of the shop (any status), ordered by start. */
+  exportBookings(shopId: string): Promise<ExportBooking[]>;
+  /**
+   * Permanently deletes the shop and everything under it (staff, services, customers, bookings, slips,
+   * LINE channel secrets, ...) via ON DELETE CASCADE from `shops`.
+   */
+  deleteShop(shopId: string): Promise<void>;
+}
+
+/** One customer row of the owner's data export. */
+export interface ExportCustomer {
+  displayName: string;
+  /** null for phone-only customers (owner bookings). */
+  lineUserId: string | null;
+  phone: string | null;
+  /** ISO. */
+  createdAt: string;
+}
+
+/** One booking row of the owner's data export (cancelled bookings included). */
+export interface ExportBooking {
+  id: string;
+  /** ISO with +07:00 offset. */
+  start: string;
+  end: string;
+  status: string;
+  channel: "line" | "owner";
+  serviceName: string;
+  staffName: string;
+  customerName: string;
+  customerPhone: string | null;
+  depositStatus: DepositStatus;
+  depositAmount: number;
+  createdAt: string;
 }
 
 export interface Deps {

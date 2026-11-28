@@ -137,6 +137,9 @@ export function createMockAdminApi(): AdminApi {
     saveSettings: async (v) => {
       settings = { ...v };
     },
+    exportCsv: async (kind) =>
+      kind === "customers" ? "\uFEFFชื่อ\r\nคุณเอ\r\n" : "\uFEFFรหัสการจอง\r\n1\r\n",
+    deleteShop: async () => {},
     blockTime: async (i) => {
       schedule.timeOff.push({ id: String(Date.now()), ...i, reason: i.reason || null });
     },
