@@ -310,3 +310,113 @@ describe("createBillingReminderHandler", () => {
     expect(alert).toHaveBeenCalledOnce();
   });
 });
+
+describe("T23: expired subscription blocks new bookings", () => {
+  const SVC = "22222222-2222-4222-8222-222222222222";
+  const STAFF = "33333333-3333-4333-8333-333333333331";
+  const start = "2026-12-07T10:00:00+07:00";
+
+  function bookingSetup(sub: Subscription | null) {
+    const insertBooking = vi.fn(async (i: { staffId: string; start: string; end: string }) => ({
+      ok: true as const,
+      booking: { id: "b1", ...i },
+    }));
+    const db = {
+      listServices: async () => [],
+      listStaff: async () => [{ id: STAFF, shopId: SHOP, name: "เอ" }],
+      getService: async () => ({
+        id: SVC,
+        shopId: SHOP,
+        name: "ตัดผม",
+        durationMin: 30,
+        price: 300,
+        deposit: 0,
+      }),
+      getDayData: async (_s: string, ids: string[]) => ({
+        workingHours: ids.map((staffId) => ({ staffId, weekday: 1, start: "10:00", end: "11:00" })),
+        timeOff: [],
+        bookings: [],
+      }),
+      upsertCustomer: async () => "c1",
+      createPhoneCustomer: async () => "c2",
+      insertBooking,
+      getShopOwner: async () => "Uowner",
+    } as unknown as Db;
+    const subs: Record<string, Subscription> = sub ? { [SHOP]: sub } : {};
+    const handler = createHandler({
+      db,
+      verifyIdToken: async (t) =>
+        t.startsWith("tok-") ? { userId: t.slice(4), displayName: "x" } : null,
+      now: () => Date.parse("2026-12-06T09:00:00+07:00"),
+      billing: {
+        db: fakeBillingDb(subs).db,
+        founderPromptPayId: null,
+        founderLineUserId: null,
+        now: () => new Date("2026-12-06T09:00:00+07:00"),
+      },
+    });
+    const post = (path: string, user: string, body: unknown) =>
+      handler(
+        new Request(`https://x.test/api${path}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer tok-${user}` },
+          body: JSON.stringify(body),
+        }),
+      );
+    return {
+      insertBooking,
+      customer: () =>
+        post(`/shops/${SHOP}/bookings`, "Ucust", { serviceId: SVC, start, staffId: STAFF }),
+      owner: () =>
+        post(`/shops/${SHOP}/admin/bookings`, "Uowner", {
+          serviceId: SVC,
+          staffId: STAFF,
+          start,
+          customerName: "คุณเอ",
+        }),
+    };
+  }
+
+  const expired: Subscription = {
+    trialEndsAt: "2026-11-01T00:00:00Z",
+    paidUntil: null,
+    plan: null,
+  };
+  const paidLapsed: Subscription = {
+    trialEndsAt: "2026-11-01T00:00:00Z",
+    paidUntil: "2026-12-01T00:00:00Z",
+    plan: "monthly",
+  };
+  const active: Subscription = { ...expired, paidUntil: "2027-01-01T00:00:00Z", plan: "monthly" };
+  const trialing: Subscription = {
+    trialEndsAt: "2026-12-20T00:00:00Z",
+    paidUntil: null,
+    plan: null,
+  };
+
+  it("refuses a customer booking for an expired shop with a Thai message", async () => {
+    for (const sub of [expired, paidLapsed]) {
+      const t = bookingSetup(sub);
+      const res = await t.customer();
+      expect(res.status).toBe(402);
+      expect(((await res.json()) as { error: string }).error).toMatch(/ติดต่อร้านโดยตรง/);
+      expect(t.insertBooking).not.toHaveBeenCalled();
+    }
+  });
+
+  it("refuses an owner phone booking for an expired shop", async () => {
+    const t = bookingSetup(expired);
+    const res = await t.owner();
+    expect(res.status).toBe(402);
+    expect(((await res.json()) as { error: string }).error).toMatch(/ต่ออายุ/);
+    expect(t.insertBooking).not.toHaveBeenCalled();
+  });
+
+  it("allows bookings for active, trial and no-subscription shops", async () => {
+    for (const sub of [active, trialing, null]) {
+      const t = bookingSetup(sub);
+      expect((await t.customer()).status).toBe(201);
+      expect((await t.owner()).status).toBe(201);
+    }
+  });
+});

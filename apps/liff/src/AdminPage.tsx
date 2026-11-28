@@ -34,6 +34,7 @@ export function AdminPage({ api, now = Date.now }: Props) {
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleted, setDeleted] = useState(false);
+  const [expired, setExpired] = useState(false);
   const [slip, setSlip] = useState<{ id: string; src: string | null; empty: boolean } | null>(null);
 
   const today = todayBangkok(now());
@@ -61,6 +62,20 @@ export function AdminPage({ api, now = Date.now }: Props) {
         /* the add form shows an empty list; schedule errors are reported separately */
       });
   }, [api]);
+
+  // T23: banner when the subscription is expired. Failures (e.g. billing not enabled) just hide it.
+  useEffect(() => {
+    let alive = true;
+    Promise.resolve()
+      .then(() => api.getBilling())
+      .then((b) => alive && setExpired(b?.status === "expired"))
+      .catch(() => {
+        /* no banner */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [api, mode]);
 
   async function run(action: () => Promise<void>, done: string) {
     if (busy) return false;
@@ -145,6 +160,14 @@ export function AdminPage({ api, now = Date.now }: Props) {
         </h2>
       </header>
 
+      {expired && (
+        <div role="alert" className="alert error" aria-label="แพ็กเกจหมดอายุ">
+          แพ็กเกจของร้านหมดอายุแล้ว ลูกค้าจองใหม่ไม่ได้ และคุณเพิ่มจองใหม่ไม่ได้ จนกว่าจะต่ออายุ{" "}
+          <button type="button" className="link" onClick={() => setMode("billing")}>
+            ต่ออายุที่นี่
+          </button>
+        </div>
+      )}
       {notice && (
         <div role="status" className="alert ok">
           {notice}
