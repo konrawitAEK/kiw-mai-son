@@ -32,3 +32,23 @@ export function inLineApp(): boolean {
 export function openExternal(url: string): void {
   liff.openWindow({ url, external: true });
 }
+
+/** Text the LINE OA webhook (T6) expects to reply with the booking confirmation. */
+export function bookingConfirmText(bookingId: string): string {
+  return `ยืนยันการจอง ${bookingId}`;
+}
+
+/**
+ * Posts `ยืนยันการจอง <bookingId>` into the customer's LINE chat so the webhook replies.
+ * liff.sendMessages only works inside the LINE client; outside it this is a no-op.
+ */
+export async function sendBookingConfirmation(bookingId: string): Promise<void> {
+  let inClient = false;
+  try {
+    inClient = liff.isInClient();
+  } catch {
+    inClient = false;
+  }
+  if (!inClient) return;
+  await liff.sendMessages([{ type: "text", text: bookingConfirmText(bookingId) }]);
+}

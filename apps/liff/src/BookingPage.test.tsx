@@ -144,6 +144,40 @@ describe("BookingPage", () => {
     });
   });
 
+  it("calls onBooked with the new booking id after success (not on a failed booking)", async () => {
+    const user = userEvent.setup();
+    const onBooked = vi.fn();
+    render(<BookingPage api={fakeApi()} now={() => NOW} onBooked={onBooked} />);
+    await toConfirm(user);
+    await user.click(screen.getByRole("button", { name: "ยืนยันการจอง" }));
+    expect(await screen.findByText("จองคิวเรียบร้อยแล้ว")).toBeTruthy();
+    expect(onBooked).toHaveBeenCalledTimes(1);
+    expect(onBooked).toHaveBeenCalledWith("bk");
+  });
+
+  it("a failing onBooked does not break the success screen", async () => {
+    const user = userEvent.setup();
+    const onBooked = vi.fn().mockRejectedValue(new Error("sendMessages failed"));
+    render(<BookingPage api={fakeApi()} now={() => NOW} onBooked={onBooked} />);
+    await toConfirm(user);
+    await user.click(screen.getByRole("button", { name: "ยืนยันการจอง" }));
+    expect(await screen.findByText("จองคิวเรียบร้อยแล้ว")).toBeTruthy();
+    expect(onBooked).toHaveBeenCalledWith("bk");
+  });
+
+  it("does not call onBooked when the booking is refused", async () => {
+    const user = userEvent.setup();
+    const onBooked = vi.fn();
+    const api = fakeApi({
+      createBooking: vi.fn().mockRejectedValue(new ApiError(500, "ระบบขัดข้อง")),
+    });
+    render(<BookingPage api={api} now={() => NOW} onBooked={onBooked} />);
+    await toConfirm(user);
+    await user.click(screen.getByRole("button", { name: "ยืนยันการจอง" }));
+    expect(await screen.findByText("ระบบขัดข้อง")).toBeTruthy();
+    expect(onBooked).not.toHaveBeenCalled();
+  });
+
   it("end time is start + service.durationMin, even if the API end equals start", async () => {
     const user = userEvent.setup();
     const broken = {

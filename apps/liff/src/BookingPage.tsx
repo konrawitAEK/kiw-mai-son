@@ -22,9 +22,11 @@ interface Props {
   api: BookingApi;
   now?: () => number;
   onClose?: () => void;
+  /** Called after a successful booking (LIFF sends the confirmation message here). Errors are ignored. */
+  onBooked?: (bookingId: string) => void | Promise<void>;
 }
 
-export function BookingPage({ api, now = Date.now, onClose }: Props) {
+export function BookingPage({ api, now = Date.now, onClose, onBooked }: Props) {
   const [step, setStep] = useState<Step>("service");
   const [services, setServices] = useState<Service[] | null>(null);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -81,6 +83,14 @@ export function BookingPage({ api, now = Date.now, onClose }: Props) {
     if (i > 0) go(STEPS[i - 1] as Step);
   }
 
+  async function notifyBooked(bookingId: string) {
+    try {
+      await onBooked?.(bookingId);
+    } catch {
+      // The booking is already saved; the chat confirmation is best-effort.
+    }
+  }
+
   function pickService(s: Service) {
     setService(s);
     setSlot(null);
@@ -114,6 +124,7 @@ export function BookingPage({ api, now = Date.now, onClose }: Props) {
       });
       setResult(booking);
       setStep("done");
+      void notifyBooked(booking.id);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         // Someone else took the slot: go back to the time list with fresh slots.
