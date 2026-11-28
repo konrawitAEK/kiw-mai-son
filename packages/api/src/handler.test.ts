@@ -37,6 +37,8 @@ function makeDb(over: Partial<Db> = {}): Db {
     start: slot("10:00"),
     end: slot("10:30"),
     status: "confirmed",
+    depositStatus: "none",
+    depositAmount: 0,
   };
   return {
     listServices: async () => [service],
@@ -64,6 +66,15 @@ function makeDb(over: Partial<Db> = {}): Db {
       end: i.end,
       reason: i.reason,
     }),
+    getShopPayment: async () => ({ promptPayId: null, depositTimeoutHours: null }),
+    updateShopPayment: async () => {},
+    saveSlip: async () => {},
+    getSlip: async () => null,
+    decideDeposit: async () => {},
+    getShopName: async () => "ร้านทดสอบ",
+    exportCustomers: async () => [],
+    exportBookings: async () => [],
+    deleteShop: async () => {},
     ...over,
   };
 }
@@ -286,6 +297,8 @@ describe("cancel booking", () => {
         start: slot("10:00"),
         end: slot("10:30"),
         status: "cancelled",
+        depositStatus: "none",
+        depositAmount: 0,
       }),
     });
     const r = await setup(db).handler(post(`/bookings/${BK}/cancel`));

@@ -4,3 +4,5 @@ pnpm-lock.yaml
 docs/**
 CLAUDE.md
 TASKS.md
+apps/landing/privacy.html
+apps/landing/terms.html

@@ -28,6 +28,8 @@ const record: BookingRecord = {
   start: "2026-12-07T10:00:00+07:00",
   end: "2026-12-07T10:30:00+07:00",
   status: "confirmed",
+  depositStatus: "none",
+  depositAmount: 0,
 };
 
 function makeDb(over: Partial<Db> = {}): Db {
@@ -49,6 +51,15 @@ function makeDb(over: Partial<Db> = {}): Db {
     createPhoneCustomer: vi.fn(async () => "cust-phone"),
     listSchedule: vi.fn(async () => ({ staff, bookings: [], timeOff: [] })),
     insertTimeOff: vi.fn(async (i) => ({ id: "to-1", ...i })),
+    getShopPayment: async () => ({ promptPayId: null, depositTimeoutHours: null }),
+    updateShopPayment: async () => {},
+    saveSlip: async () => {},
+    getSlip: async () => null,
+    decideDeposit: async () => {},
+    getShopName: async () => "ร้านทดสอบ",
+    exportCustomers: async () => [],
+    exportBookings: async () => [],
+    deleteShop: async () => {},
     ...over,
   };
 }

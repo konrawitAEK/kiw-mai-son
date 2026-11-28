@@ -1,5 +1,5 @@
 import type { Service } from "@kms/core";
-import { ApiError, GENERIC_ERROR } from "./api.js";
+import { ApiError, GENERIC_ERROR, type DepositStatus } from "./api.js";
 
 export interface AdminStaff {
   id: string;
@@ -17,6 +17,16 @@ export interface AdminBooking {
   end: string;
   status: string;
   channel: "line" | "owner";
+  /** Optional so older fixtures/servers without deposits still type-check; missing = "none". */
+  depositStatus?: DepositStatus;
+  /** THB. */
+  depositAmount?: number;
+}
+export interface AdminSettings {
+  /** Raw PromptPay ID (the owner's own), or null if not set. */
+  promptPayId: string | null;
+  /** Hours until an unpaid deposit auto-cancels; null = off. */
+  depositTimeoutHours: number | null;
 }
 export interface AdminTimeOff {
   id: string;
@@ -32,6 +42,8 @@ export interface AdminSchedule {
   timeOff: AdminTimeOff[];
 }
 
+export type ExportKind = "customers" | "bookings";
+
 export interface AdminApi {
   listServices(): Promise<Service[]>;
   getSchedule(from: string, days: number): Promise<AdminSchedule>;
@@ -43,6 +55,15 @@ export interface AdminApi {
     phone: string;
   }): Promise<void>;
   cancelBooking(bookingId: string): Promise<void>;
+  /** Slip image the customer uploaded; null if there is none. */
+  getSlip(bookingId: string): Promise<{ contentType: string; dataBase64: string } | null>;
+  decideDeposit(bookingId: string, decision: "confirm" | "reject"): Promise<void>;
+  getSettings(): Promise<AdminSettings>;
+  saveSettings(settings: AdminSettings): Promise<void>;
+  /** CSV text (UTF-8, BOM included) of the shop's customers or bookings. */
+  exportCsv(kind: ExportKind): Promise<string>;
+  /** Permanently deletes the shop and all its data; `confirmName` must equal the shop name. */
+  deleteShop(confirmName: string): Promise<void>;
   blockTime(input: {
     staffId: string | null;
     start: string;
@@ -60,7 +81,12 @@ export function createAdminApi(opts: {
   const f = opts.fetchFn ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
   const shop = `${opts.baseUrl.replace(/\/+$/, "")}/shops/${encodeURIComponent(opts.shopId)}`;
 
-  async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  async function call<T>(
+    path: string,
+    method = "GET",
+    body?: unknown,
+    as: "json" | "text" = "json",
+  ): Promise<T> {
     const token = opts.getIdToken();
     let res: Response;
     try {
@@ -75,6 +101,7 @@ export function createAdminApi(opts: {
     } catch {
       throw new ApiError(0, GENERIC_ERROR);
     }
+    if (as === "text" && res.ok) return (await res.text()) as T;
     let data: unknown = null;
     try {
       data = await res.json();
@@ -100,6 +127,31 @@ export function createAdminApi(opts: {
     },
     async cancelBooking(bookingId) {
       await call(`/admin/bookings/${encodeURIComponent(bookingId)}/cancel`, "POST");
+    },
+    async getSlip(bookingId) {
+      try {
+        return await call<{ contentType: string; dataBase64: string }>(
+          `/admin/bookings/${encodeURIComponent(bookingId)}/slip`,
+        );
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }
+    },
+    async decideDeposit(bookingId, decision) {
+      await call(`/admin/bookings/${encodeURIComponent(bookingId)}/deposit`, "POST", { decision });
+    },
+    getSettings() {
+      return call<AdminSettings>("/admin/settings");
+    },
+    async saveSettings(settings) {
+      await call("/admin/settings", "POST", settings);
+    },
+    exportCsv(kind) {
+      return call<string>(`/admin/export?kind=${kind}`, "GET", undefined, "text");
+    },
+    async deleteShop(confirmName) {
+      await call("/admin/delete", "POST", { confirmName });
     },
     async blockTime(input) {
       await call("/admin/time-off", "POST", input);

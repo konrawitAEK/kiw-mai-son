@@ -1,6 +1,7 @@
 import { availableSlots, bangkokDayStart, toBangkokIso } from "@kms/core";
 import { createAdminRoutes } from "./admin.js";
 import { createShopRoute } from "./onboarding.js";
+import { createDepositRoutes, depositInfo } from "./deposit.js";
 import { CORS, DAY_MS, err, json, MIN_MS, MSG, UUID } from "./http.js";
 import type { Deps } from "./types.js";
 
@@ -13,6 +14,8 @@ export { MSG };
  *   GET  /shops/:shopId/slots?serviceId=&date=YYYY-MM-DD[&staffId=]
  *   POST /shops/:shopId/bookings   { serviceId, start, staffId? }   (LIFF ID token)
  *   POST /bookings/:id/cancel                                        (LIFF ID token, own booking only)
+ *   GET  /bookings/:id/deposit                                       (LIFF ID token, own booking only)
+ *   POST /bookings/:id/slip       { contentType, dataBase64 }        (LIFF ID token, own booking only)
  * Owner admin (LIFF ID token must belong to the shop owner; see admin.ts):
  *   GET  /shops/:shopId/admin/schedule?from=YYYY-MM-DD[&days=1..7]
  *   POST /shops/:shopId/admin/bookings        { serviceId, staffId, start, customerName, phone? }
@@ -26,6 +29,11 @@ export { MSG };
  *   POST /shops/:shopId/admin/staff           { name }
  *   PUT  /shops/:shopId/admin/staff/:id/hours { windows: [{weekday,start,end}] }
  *   POST /shops/:shopId/admin/rich-menu       { imageBase64 }
+ *   GET  /shops/:shopId/admin/bookings/:id/slip
+ *   POST /shops/:shopId/admin/bookings/:id/deposit { decision: "confirm"|"reject" }
+ *   GET|POST /shops/:shopId/admin/settings    { promptPayId|null, depositTimeoutHours|null }
+ *   GET  /shops/:shopId/admin/export?kind=customers|bookings   (CSV download)
+ *   POST /shops/:shopId/admin/delete          { confirmName }   (deletes the shop and all its data)
  */
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const step = deps.stepMinutes ?? 30;
@@ -73,6 +81,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
   const admin = createAdminRoutes(deps);
   const createShop = deps.onboarding ? createShopRoute(deps.onboarding, deps) : null;
+  const deposits = createDepositRoutes(deps);
 
   async function route(req: Request): Promise<Response> {
     const url = new URL(req.url);
@@ -118,14 +127,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
     }
 
-    if (
-      method === "POST" &&
-      parts[0] === "bookings" &&
-      parts[1] &&
-      parts[2] === "cancel" &&
-      parts.length === 3
-    ) {
-      return cancelBooking(req, parts[1]);
+    if (parts[0] === "bookings" && parts[1] && parts.length === 3) {
+      if (method === "POST" && parts[2] === "cancel") return cancelBooking(req, parts[1]);
+      if (method === "GET" && parts[2] === "deposit") return ownBooking(req, parts[1], "deposit");
+      if (method === "POST" && parts[2] === "slip") return ownBooking(req, parts[1], "slip");
     }
     return err(404, MSG.notFound);
   }
@@ -173,8 +178,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         customerId,
         start: startIso,
         end: endIso,
+        depositAmount: open.service.deposit,
       });
-      if (result.ok) return json(201, { booking: result.booking });
+      if (result.ok) {
+        return json(201, {
+          booking: result.booking,
+          deposit: await depositInfo(deps, result.booking),
+        });
+      }
     }
     return err(409, MSG.conflict);
   }
@@ -188,6 +199,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (!booking || booking.customerLineUserId !== user.userId) return err(404, MSG.notFound);
     if (booking.status !== "cancelled") await deps.db.cancelBooking(bookingId);
     return json(200, { booking: { ...booking, status: "cancelled" } });
+  }
+
+  /** Deposit routes for the signed-in customer's own booking (someone else's looks like a missing one). */
+  async function ownBooking(req: Request, bookingId: string, what: "deposit" | "slip") {
+    const user = await authenticate(req);
+    if (!user) return err(401, MSG.unauthorized);
+    if (!UUID.test(bookingId)) return err(404, MSG.notFound);
+    const booking = await deps.db.getBooking(bookingId);
+    if (!booking || booking.customerLineUserId !== user.userId) return err(404, MSG.notFound);
+    return what === "deposit"
+      ? deposits.customerGet(booking)
+      : deposits.customerUploadSlip(req, booking);
   }
 
   return async (req) => {

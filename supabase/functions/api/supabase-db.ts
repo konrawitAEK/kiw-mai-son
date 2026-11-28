@@ -6,6 +6,8 @@ import type { Booking, Service, Staff, TimeOff, WorkingHours } from "@kms/core";
 import type {
   BookingRecord,
   Db,
+  ExportBooking,
+  ExportCustomer,
   ScheduleBooking,
   TimeOffRecord,
 } from "../../../packages/api/src/types.ts";
@@ -45,10 +47,24 @@ function toBooking(r: Row): BookingRecord {
     start,
     end,
     status: r.status,
+    depositStatus: r.deposit_status,
+    depositAmount: r.deposit_amount,
   };
 }
 
-const BOOKING_COLS = "id, shop_id, staff_id, service_id, during, status, customers(line_user_id)";
+const BOOKING_COLS =
+  "id, shop_id, staff_id, service_id, during, status, deposit_status, deposit_amount, customers(line_user_id)";
+
+/** bytea over PostgREST is a "\\x<hex>" string in both directions. */
+function toHex(d: Uint8Array): string {
+  return "\\x" + Array.from(d, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+function fromHex(h: string): Uint8Array {
+  const hex = h.startsWith("\\x") ? h.slice(2) : h;
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
 
 export function createSupabaseDb(sb: Client): Db {
   return {
@@ -163,6 +179,7 @@ export function createSupabaseDb(sb: Client): Db {
       return r.id;
     },
     async insertBooking(i) {
+      const deposit = i.depositAmount ?? 0;
       const res = await sb
         .from("bookings")
         .insert({
@@ -171,7 +188,10 @@ export function createSupabaseDb(sb: Client): Db {
           service_id: i.serviceId,
           customer_id: i.customerId,
           during: `[${i.start},${i.end})`,
-          status: "confirmed",
+          // A deposit holds the slot as "pending" until the owner confirms the slip.
+          status: deposit > 0 ? "pending" : "confirmed",
+          deposit_amount: deposit,
+          deposit_status: deposit > 0 ? "pending" : "none",
           channel: i.channel ?? "line",
         })
         .select(BOOKING_COLS)
@@ -208,7 +228,7 @@ export function createSupabaseDb(sb: Client): Db {
         await sb
           .from("bookings")
           .select(
-            "id, staff_id, service_id, during, status, channel, services(name), customers(display_name, phone)",
+            "id, staff_id, service_id, during, status, channel, deposit_status, deposit_amount, services(name), customers(display_name, phone)",
           )
           .eq("shop_id", shopId)
           .neq("status", "cancelled")
@@ -232,6 +252,8 @@ export function createSupabaseDb(sb: Client): Db {
             customerPhone: r.customers?.phone ?? null,
             status: r.status,
             channel: r.channel,
+            depositStatus: r.deposit_status,
+            depositAmount: r.deposit_amount,
             ...parseBangkokRange(r.during),
           }),
         )
@@ -263,6 +285,115 @@ export function createSupabaseDb(sb: Client): Db {
           .single(),
       );
       return { id: r.id, staffId: i.staffId, start: i.start, end: i.end, reason: i.reason };
+    },
+    async getShopName(shopId) {
+      const r: Row | null = check(
+        await sb.from("shops").select("name").eq("id", shopId).maybeSingle(),
+      );
+      return r ? r.name : null;
+    },
+    async exportCustomers(shopId) {
+      const rows: Row[] = check(
+        await sb
+          .from("customers")
+          .select("display_name, line_user_id, phone, created_at")
+          .eq("shop_id", shopId)
+          .order("created_at"),
+      );
+      return rows.map(
+        (r): ExportCustomer => ({
+          displayName: r.display_name,
+          lineUserId: r.line_user_id,
+          phone: r.phone,
+          createdAt: toBangkokIso(Date.parse(r.created_at)),
+        }),
+      );
+    },
+    async exportBookings(shopId) {
+      const rows: Row[] = check(
+        await sb
+          .from("bookings")
+          .select(
+            "id, during, status, channel, deposit_status, deposit_amount, created_at, services(name), staff(name), customers(display_name, phone)",
+          )
+          .eq("shop_id", shopId),
+      );
+      return rows
+        .map(
+          (r): ExportBooking => ({
+            id: r.id,
+            ...parseBangkokRange(r.during),
+            status: r.status,
+            channel: r.channel,
+            serviceName: r.services?.name ?? "",
+            staffName: r.staff?.name ?? "",
+            customerName: r.customers?.display_name ?? "",
+            customerPhone: r.customers?.phone ?? null,
+            depositStatus: r.deposit_status,
+            depositAmount: r.deposit_amount,
+            createdAt: toBangkokIso(Date.parse(r.created_at)),
+          }),
+        )
+        .sort((a, b) => a.start.localeCompare(b.start));
+    },
+    async deleteShop(shopId) {
+      // Every table references shops(id) ON DELETE CASCADE (see migrations), so this removes everything.
+      check(await sb.from("shops").delete().eq("id", shopId));
+    },
+    async getShopPayment(shopId) {
+      const r: Row | null = check(
+        await sb
+          .from("shops")
+          .select("promptpay_id, deposit_timeout_hours")
+          .eq("id", shopId)
+          .maybeSingle(),
+      );
+      return r
+        ? { promptPayId: r.promptpay_id, depositTimeoutHours: r.deposit_timeout_hours }
+        : null;
+    },
+    async updateShopPayment(shopId, p) {
+      check(
+        await sb
+          .from("shops")
+          .update({ promptpay_id: p.promptPayId, deposit_timeout_hours: p.depositTimeoutHours })
+          .eq("id", shopId),
+      );
+    },
+    async saveSlip(bookingId, slip) {
+      check(
+        await sb.from("deposit_slips").upsert({
+          booking_id: bookingId,
+          content_type: slip.contentType,
+          data: toHex(slip.data),
+          uploaded_at: new Date().toISOString(),
+        }),
+      );
+      check(
+        await sb
+          .from("bookings")
+          .update({ deposit_status: "submitted" })
+          .eq("id", bookingId)
+          .eq("status", "pending")
+          .in("deposit_status", ["pending", "submitted", "rejected"]),
+      );
+    },
+    async getSlip(bookingId) {
+      const r: Row | null = check(
+        await sb
+          .from("deposit_slips")
+          .select("content_type, data")
+          .eq("booking_id", bookingId)
+          .maybeSingle(),
+      );
+      return r ? { contentType: r.content_type, data: fromHex(String(r.data)) } : null;
+    },
+    async decideDeposit(bookingId, decision) {
+      const patch =
+        decision === "paid"
+          ? { status: "confirmed", deposit_status: "paid" }
+          : { deposit_status: "rejected" };
+      check(await sb.from("bookings").update(patch).eq("id", bookingId).eq("status", "pending"));
     },
     async cancelBooking(bookingId) {
       check(await sb.from("bookings").update({ status: "cancelled" }).eq("id", bookingId));

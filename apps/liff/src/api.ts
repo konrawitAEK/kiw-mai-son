@@ -1,11 +1,31 @@
 import type { Service, Slot, Staff } from "@kms/core";
 
+export type DepositStatus = "none" | "pending" | "submitted" | "paid" | "rejected" | "refunded";
+
+/** Deposit details from the API (see packages/api deposit.ts). */
+export interface DepositInfo {
+  /** THB. */
+  amount: number;
+  status: DepositStatus;
+  /** PromptPay QR text; null when the shop has not set a PromptPay ID. */
+  promptPayPayload: string | null;
+  /** Hours until an unpaid deposit auto-cancels; null = never. */
+  timeoutHours: number | null;
+}
+
 export interface BookingResult {
   id: string;
   start: string;
   end: string;
   staffId: string;
   serviceId: string;
+  /** Present when the booked service has a deposit. */
+  deposit?: DepositInfo | null;
+}
+
+export interface SlipUpload {
+  contentType: "image/jpeg" | "image/png" | "image/webp";
+  dataBase64: string;
 }
 
 /** Error carrying the Thai message from the API and the HTTP status. */
@@ -27,6 +47,9 @@ export interface BookingApi {
     start: string;
     staffId: string | null;
   }): Promise<BookingResult>;
+  /** Current deposit state of the customer's own booking. */
+  getDeposit(bookingId: string): Promise<{ bookingStatus: string; deposit: DepositInfo }>;
+  uploadSlip(bookingId: string, slip: SlipUpload): Promise<DepositInfo>;
 }
 
 export const GENERIC_ERROR = "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
@@ -40,10 +63,12 @@ export function createBookingApi(opts: {
   const f = opts.fetchFn ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
   const base = `${opts.baseUrl.replace(/\/+$/, "")}/shops/${encodeURIComponent(opts.shopId)}`;
 
-  async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const root = opts.baseUrl.replace(/\/+$/, "");
+
+  async function call<T>(path: string, init?: RequestInit, absolute = false): Promise<T> {
     let res: Response;
     try {
-      res = await f(`${base}${path}`, init);
+      res = await f(`${absolute ? root : base}${path}`, init);
     } catch {
       throw new ApiError(0, GENERIC_ERROR);
     }
@@ -76,16 +101,39 @@ export function createBookingApi(opts: {
       const token = opts.getIdToken();
       const body: Record<string, string> = { serviceId: input.serviceId, start: input.start };
       if (input.staffId) body.staffId = input.staffId;
-      return (
-        await call<{ booking: BookingResult }>("/bookings", {
+      const r = await call<{ booking: BookingResult; deposit?: DepositInfo | null }>("/bookings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+      return { ...r.booking, deposit: r.deposit ?? null };
+    },
+    getDeposit(bookingId) {
+      const token = opts.getIdToken();
+      return call(
+        `/bookings/${encodeURIComponent(bookingId)}/deposit`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+        true,
+      );
+    },
+    async uploadSlip(bookingId, slip) {
+      const token = opts.getIdToken();
+      const r = await call<{ deposit: DepositInfo }>(
+        `/bookings/${encodeURIComponent(bookingId)}/slip`,
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify(body),
-        })
-      ).booking;
+          body: JSON.stringify(slip),
+        },
+        true,
+      );
+      return r.deposit;
     },
   };
 }

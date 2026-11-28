@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Service } from "@kms/core";
 import { ApiError, GENERIC_ERROR } from "./api.js";
-import type { AdminApi, AdminBooking, AdminSchedule } from "./admin-api.js";
-import { dayLabel, timeLabel, todayBangkok } from "./format.js";
+import type {
+  AdminApi,
+  AdminBooking,
+  AdminSchedule,
+  AdminSettings,
+  ExportKind,
+} from "./admin-api.js";
+import { LegalLinks } from "./LegalPage.js";
+import { dayLabel, priceLabel, timeLabel, todayBangkok } from "./format.js";
 
 type View = "today" | "week";
-type Mode = "schedule" | "add" | "block";
+type Mode = "schedule" | "add" | "block" | "settings" | "privacy";
 
 interface Props {
   api: AdminApi;
@@ -24,6 +31,8 @@ export function AdminPage({ api, now = Date.now }: Props) {
   const [forbidden, setForbidden] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+  const [slip, setSlip] = useState<{ id: string; src: string | null; empty: boolean } | null>(null);
 
   const today = todayBangkok(now());
 
@@ -71,6 +80,34 @@ export function AdminPage({ api, now = Date.now }: Props) {
     }
   }
 
+  async function viewSlip(id: string) {
+    setError(null);
+    try {
+      const r = await api.getSlip(id);
+      setSlip({
+        id,
+        src: r ? `data:${r.contentType};base64,${r.dataBase64}` : null,
+        empty: r === null,
+      });
+    } catch (e) {
+      setError(msg(e));
+    }
+  }
+
+  if (deleted) {
+    return (
+      <main className="page">
+        <header className="top">
+          <h1>คิวไม่ซ้อน · เจ้าของร้าน</h1>
+          <h2>ลบร้านเรียบร้อยแล้ว</h2>
+        </header>
+        <div role="status" className="alert ok">
+          ข้อมูลร้านและข้อมูลลูกค้าทั้งหมดถูกลบออกจากระบบแล้ว
+        </div>
+      </main>
+    );
+  }
+
   if (forbidden) {
     return (
       <main className="page">
@@ -90,7 +127,15 @@ export function AdminPage({ api, now = Date.now }: Props) {
       <header className="top">
         <h1>คิวไม่ซ้อน · เจ้าของร้าน</h1>
         <h2>
-          {mode === "add" ? "เพิ่มจองให้ลูกค้าโทร" : mode === "block" ? "บล็อกเวลา" : "ตารางคิว"}
+          {mode === "add"
+            ? "เพิ่มจองให้ลูกค้าโทร"
+            : mode === "block"
+              ? "บล็อกเวลา"
+              : mode === "settings"
+                ? "ตั้งค่ามัดจำ"
+                : mode === "privacy"
+                  ? "ข้อมูลและความเป็นส่วนตัว"
+                  : "ตารางคิว"}
         </h2>
       </header>
 
@@ -122,7 +167,26 @@ export function AdminPage({ api, now = Date.now }: Props) {
             <button type="button" className="secondary" onClick={() => setMode("block")}>
               บล็อกเวลา
             </button>
+            <button type="button" className="secondary" onClick={() => setMode("settings")}>
+              ตั้งค่ามัดจำ
+            </button>
+            <button type="button" className="secondary" onClick={() => setMode("privacy")}>
+              ข้อมูลและความเป็นส่วนตัว
+            </button>
           </div>
+
+          {slip && (
+            <section className="slip-view" aria-label="สลิปมัดจำ">
+              {slip.src ? (
+                <img className="slip-img" src={slip.src} alt="สลิปการโอนมัดจำ" />
+              ) : (
+                <p className="muted">ลูกค้ายังไม่ได้ส่งสลิป</p>
+              )}
+              <button type="button" className="link" onClick={() => setSlip(null)}>
+                ปิดสลิป
+              </button>
+            </section>
+          )}
 
           {schedule === null && !error && <p className="muted">กำลังโหลด...</p>}
           {schedule && (
@@ -133,6 +197,14 @@ export function AdminPage({ api, now = Date.now }: Props) {
               busy={busy}
               onAskCancel={setConfirmCancel}
               onCancel={(id) => void run(() => api.cancelBooking(id), "ยกเลิกคิวเรียบร้อยแล้ว")}
+              onViewSlip={(id) => void viewSlip(id)}
+              onDecide={(id, d) => {
+                setSlip(null);
+                void run(
+                  () => api.decideDeposit(id, d),
+                  d === "confirm" ? "ยืนยันมัดจำแล้ว คิวนี้ยืนยันเรียบร้อย" : "ปฏิเสธสลิปแล้ว",
+                );
+              }}
             />
           )}
         </>
@@ -162,6 +234,23 @@ export function AdminPage({ api, now = Date.now }: Props) {
         />
       )}
 
+      {mode === "settings" && (
+        <SettingsForm
+          api={api}
+          busy={busy}
+          onBack={() => setMode("schedule")}
+          onSave={(v) => run(() => api.saveSettings(v), "บันทึกการตั้งค่าแล้ว")}
+        />
+      )}
+
+      {mode === "privacy" && (
+        <PrivacyPanel
+          api={api}
+          onBack={() => setMode("schedule")}
+          onDeleted={() => setDeleted(true)}
+        />
+      )}
+
       {mode === "block" && schedule && (
         <BlockForm
           staff={schedule.staff}
@@ -182,6 +271,7 @@ export function AdminPage({ api, now = Date.now }: Props) {
           }
         />
       )}
+      <LegalLinks owner />
     </main>
   );
 }
@@ -193,6 +283,8 @@ function ScheduleView(props: {
   busy: boolean;
   onAskCancel: (id: string | null) => void;
   onCancel: (id: string) => void;
+  onViewSlip: (id: string) => void;
+  onDecide: (id: string, decision: "confirm" | "reject") => void;
 }) {
   const { schedule, showDay } = props;
   const when = (iso: string) => (showDay ? `${dayLabel(iso.slice(0, 10))} ` : "");
@@ -230,6 +322,8 @@ function ScheduleView(props: {
                   busy={props.busy}
                   onAsk={props.onAskCancel}
                   onCancel={props.onCancel}
+                  onViewSlip={props.onViewSlip}
+                  onDecide={props.onDecide}
                 />
               ))}
             </ul>
@@ -240,6 +334,14 @@ function ScheduleView(props: {
   );
 }
 
+const DEPOSIT_LABEL: Record<string, string> = {
+  pending: "รอโอนมัดจำ",
+  submitted: "รอตรวจสลิป",
+  paid: "ชำระแล้ว",
+  rejected: "สลิปไม่ผ่าน",
+  refunded: "คืนมัดจำแล้ว",
+};
+
 function BookingRow(props: {
   b: AdminBooking;
   prefix: string;
@@ -247,8 +349,12 @@ function BookingRow(props: {
   busy: boolean;
   onAsk: (id: string | null) => void;
   onCancel: (id: string) => void;
+  onViewSlip: (id: string) => void;
+  onDecide: (id: string, decision: "confirm" | "reject") => void;
 }) {
   const { b } = props;
+  const dep = b.depositStatus ?? "none";
+  const openDeposit = b.status === "pending" && ["pending", "submitted", "rejected"].includes(dep);
   return (
     <li className="slot">
       <span className="time">
@@ -265,6 +371,45 @@ function BookingRow(props: {
           </>
         )}
       </span>
+      {dep !== "none" && (
+        <span className="who">
+          <span
+            className={`badge ${dep === "paid" ? "paid" : dep === "rejected" ? "rejected" : ""}`}
+          >
+            {DEPOSIT_LABEL[dep] ?? dep}
+          </span>{" "}
+          มัดจำ {priceLabel(b.depositAmount ?? 0)}
+        </span>
+      )}
+      {openDeposit && (
+        <span className="row-actions">
+          {dep === "submitted" && (
+            <button type="button" className="link" onClick={() => props.onViewSlip(b.id)}>
+              ดูสลิป
+            </button>
+          )}
+          <button
+            type="button"
+            className="primary-sm"
+            disabled={props.busy}
+            aria-label={`ยืนยันมัดจำ ${b.customerName} ${timeLabel(b.start)}`}
+            onClick={() => props.onDecide(b.id, "confirm")}
+          >
+            ยืนยันมัดจำ
+          </button>
+          {dep !== "rejected" && (
+            <button
+              type="button"
+              className="link"
+              disabled={props.busy}
+              aria-label={`ปฏิเสธสลิป ${b.customerName} ${timeLabel(b.start)}`}
+              onClick={() => props.onDecide(b.id, "reject")}
+            >
+              ปฏิเสธสลิป
+            </button>
+          )}
+        </span>
+      )}
       {props.asking ? (
         <span className="row-actions">
           <button
@@ -450,5 +595,207 @@ function BlockForm(props: {
         ย้อนกลับ
       </button>
     </form>
+  );
+}
+
+function SettingsForm(props: {
+  api: AdminApi;
+  busy: boolean;
+  onBack: () => void;
+  onSave: (v: AdminSettings) => Promise<boolean>;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [promptPayId, setPromptPayId] = useState("");
+  const [autoCancel, setAutoCancel] = useState(false);
+  const [hours, setHours] = useState("24");
+
+  useEffect(() => {
+    props.api
+      .getSettings()
+      .then((s) => {
+        setPromptPayId(s.promptPayId ?? "");
+        setAutoCancel(s.depositTimeoutHours !== null);
+        if (s.depositTimeoutHours !== null) setHours(String(s.depositTimeoutHours));
+        setLoaded(true);
+      })
+      .catch((e: unknown) => setLoadError(msg(e)));
+  }, [props.api]);
+
+  const hoursNum = Number(hours);
+  const hoursOk = !autoCancel || (Number.isInteger(hoursNum) && hoursNum >= 1 && hoursNum <= 720);
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    void props.onSave({
+      promptPayId: promptPayId.trim() === "" ? null : promptPayId.trim(),
+      depositTimeoutHours: autoCancel ? hoursNum : null,
+    });
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="alert error">
+        {loadError}
+      </div>
+    );
+  }
+  if (!loaded) return <p className="muted">กำลังโหลด...</p>;
+
+  return (
+    <form onSubmit={submit} className="form">
+      <label>
+        พร้อมเพย์ของร้าน (เบอร์โทร 10 หลัก หรือเลขบัตรประชาชน/ผู้เสียภาษี 13 หลัก)
+        <input
+          inputMode="numeric"
+          value={promptPayId}
+          onChange={(e) => setPromptPayId(e.target.value)}
+          placeholder="08x-xxx-xxxx"
+          autoComplete="off"
+        />
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={autoCancel}
+          onChange={(e) => setAutoCancel(e.target.checked)}
+        />
+        ยกเลิกคิวอัตโนมัติถ้าไม่โอนมัดจำ
+      </label>
+      {autoCancel && (
+        <label>
+          ภายในกี่ชั่วโมงหลังจอง (1-720)
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={720}
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+          />
+        </label>
+      )}
+      <p className="muted">
+        ปิดไว้เป็นค่าเริ่มต้น คิวที่ลูกค้าส่งสลิปแล้ว (รอร้านตรวจ) จะไม่ถูกยกเลิกอัตโนมัติ
+      </p>
+      <button type="submit" className="primary" disabled={props.busy || !hoursOk}>
+        {props.busy ? "กำลังบันทึก..." : "บันทึก"}
+      </button>
+      <button type="button" className="link" onClick={props.onBack}>
+        ย้อนกลับ
+      </button>
+    </form>
+  );
+}
+
+/** Triggers a browser download of CSV text (BOM already included by the server). */
+function saveCsv(filename: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function PrivacyPanel(props: { api: AdminApi; onBack: () => void; onDeleted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmName, setConfirmName] = useState("");
+  const [armed, setArmed] = useState(false);
+
+  async function download(kind: ExportKind) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const text = await props.api.exportCsv(kind);
+      saveCsv(`kiw-mai-son-${kind}.csv`, text);
+      setNotice("ดาวน์โหลดไฟล์แล้ว");
+    } catch (e) {
+      setError(msg(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(e: FormEvent) {
+    e.preventDefault();
+    if (busy || confirmName.trim() === "") return;
+    setBusy(true);
+    setError(null);
+    try {
+      await props.api.deleteShop(confirmName);
+      props.onDeleted();
+    } catch (err) {
+      setError(msg(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="form">
+      {notice && (
+        <div role="status" className="alert ok">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <div role="alert" className="alert error">
+          {error}
+        </div>
+      )}
+      <h3>ดาวน์โหลดข้อมูล (CSV)</h3>
+      <p className="muted">ไฟล์เปิดได้ใน Excel / Google Sheets</p>
+      <button
+        type="button"
+        className="secondary"
+        disabled={busy}
+        onClick={() => download("customers")}
+      >
+        ดาวน์โหลดรายชื่อลูกค้า
+      </button>
+      <button
+        type="button"
+        className="secondary"
+        disabled={busy}
+        onClick={() => download("bookings")}
+      >
+        ดาวน์โหลดรายการจองทั้งหมด
+      </button>
+
+      <h3>ลบร้านและข้อมูลทั้งหมด</h3>
+      <p className="muted">
+        จะลบร้าน บริการ ช่าง ลูกค้า การจอง สลิป และการเชื่อม LINE ออกจากระบบทันที กู้คืนไม่ได้
+        โปรดดาวน์โหลดข้อมูลก่อน LINE OA ของร้านยังเป็นของร้านตามเดิม
+      </p>
+      {!armed ? (
+        <button type="button" className="danger" onClick={() => setArmed(true)}>
+          ต้องการลบร้าน
+        </button>
+      ) : (
+        <form onSubmit={remove} className="form">
+          <label>
+            พิมพ์ชื่อร้านให้ตรงเพื่อยืนยันการลบ
+            <input
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <button type="submit" className="danger" disabled={busy || confirmName.trim() === ""}>
+            {busy ? "กำลังลบ..." : "ยืนยันลบร้านถาวร"}
+          </button>
+        </form>
+      )}
+
+      <button type="button" className="link" onClick={props.onBack}>
+        ย้อนกลับ
+      </button>
+    </section>
   );
 }

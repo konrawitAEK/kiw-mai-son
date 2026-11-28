@@ -10,6 +10,8 @@ import {
   type ReminderCandidate,
 } from "../../../packages/api/src/reminders.ts";
 
+import { createFounderAlerter, withErrorAlert } from "../../../packages/api/src/monitoring.ts";
+
 declare const Deno: {
   env: { get(k: string): string | undefined };
   serve(h: (req: Request) => Promise<Response>): void;
@@ -43,53 +45,67 @@ async function decrypt(bytea: string): Promise<string> {
   return new TextDecoder().decode(plain);
 }
 
+const alert = createFounderAlerter({
+  channelAccessToken: Deno.env.get("FOUNDER_LINE_CHANNEL_TOKEN"),
+  founderUserId: Deno.env.get("FOUNDER_LINE_USER_ID"),
+});
+
 Deno.serve(
-  createReminderHandler(
-    {
-      now: () => new Date(),
-      async listCandidates(from, to, kind) {
-        const { data, error } = await supabase.rpc("due_reminders", {
-          p_from: from,
-          p_to: to,
-          p_kind: kind,
-        });
-        if (error) throw new Error(error.message);
-        return (data as Row[]).map(
-          (r): ReminderCandidate => ({
-            bookingId: r.booking_id,
-            shopId: r.shop_id,
-            shopName: r.shop_name,
-            remindersEnabled: r.reminders_enabled,
-            status: r.status,
-            start: new Date(r.starts_at).toISOString(),
-            customerLineUserId: r.customer_line_user_id,
-            serviceName: r.service_name,
-            staffName: r.staff_name,
-          }),
-        );
+  withErrorAlert(
+    "reminders",
+    createReminderHandler(
+      {
+        now: () => new Date(),
+        async listCandidates(from, to, kind) {
+          const { data, error } = await supabase.rpc("due_reminders", {
+            p_from: from,
+            p_to: to,
+            p_kind: kind,
+          });
+          if (error) throw new Error(error.message);
+          return (data as Row[]).map(
+            (r): ReminderCandidate => ({
+              bookingId: r.booking_id,
+              shopId: r.shop_id,
+              shopName: r.shop_name,
+              remindersEnabled: r.reminders_enabled,
+              status: r.status,
+              start: new Date(r.starts_at).toISOString(),
+              customerLineUserId: r.customer_line_user_id,
+              serviceName: r.service_name,
+              staffName: r.staff_name,
+            }),
+          );
+        },
+        async claim(bookingId, kind) {
+          const { data, error } = await supabase.rpc("claim_reminder", {
+            p_booking_id: bookingId,
+            p_kind: kind,
+          });
+          if (error) throw new Error(error.message);
+          return data === true;
+        },
+        async release(bookingId, kind) {
+          await supabase
+            .from("reminders_log")
+            .delete()
+            .eq("booking_id", bookingId)
+            .eq("kind", kind);
+        },
+        async getAccessToken(shopId) {
+          const { data, error } = await supabase
+            .from("line_channels")
+            .select("channel_access_token_encrypted")
+            .eq("shop_id", shopId)
+            .maybeSingle();
+          if (error) throw new Error(error.message);
+          return data ? await decrypt(data.channel_access_token_encrypted) : null;
+        },
+        push: createLinePush(),
       },
-      async claim(bookingId, kind) {
-        const { data, error } = await supabase.rpc("claim_reminder", {
-          p_booking_id: bookingId,
-          p_kind: kind,
-        });
-        if (error) throw new Error(error.message);
-        return data === true;
-      },
-      async release(bookingId, kind) {
-        await supabase.from("reminders_log").delete().eq("booking_id", bookingId).eq("kind", kind);
-      },
-      async getAccessToken(shopId) {
-        const { data, error } = await supabase
-          .from("line_channels")
-          .select("channel_access_token_encrypted")
-          .eq("shop_id", shopId)
-          .maybeSingle();
-        if (error) throw new Error(error.message);
-        return data ? await decrypt(data.channel_access_token_encrypted) : null;
-      },
-      push: createLinePush(),
-    },
-    Deno.env.get("REMINDER_CRON_SECRET") ?? "",
+      Deno.env.get("REMINDER_CRON_SECRET") ?? "",
+      alert,
+    ),
+    alert,
   ),
 );

@@ -5,6 +5,7 @@ import { OnboardingPage } from "./OnboardingPage.js";
 import { createOnboardingApi, type OnboardingApi } from "./onboarding-api.js";
 import { BookingPage } from "./BookingPage.js";
 import { createBookingApi, type BookingApi } from "./api.js";
+import { LegalPage } from "./LegalPage.js";
 import { closeLiff, initLiff } from "./liff.js";
 
 const useMock = import.meta.env.DEV && new URLSearchParams(window.location.search).has("mock");
@@ -17,12 +18,13 @@ export function App() {
   const page = new URLSearchParams(window.location.search).get("page");
   const isAdmin = page === "admin";
   const isOnboarding = page === "onboarding";
+  const isLegal = page === "privacy" || page === "terms";
   const shopId = new URLSearchParams(window.location.search).get("shop") ?? "";
   const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
   const liffId = (import.meta.env.VITE_LIFF_ID as string | undefined) ?? "";
 
   useEffect(() => {
-    if (useMock) return;
+    if (useMock || isLegal) return;
     if (!liffId) {
       setFatal("ยังไม่ได้ตั้งค่าแอปจอง กรุณาติดต่อร้าน");
       return;
@@ -33,7 +35,7 @@ export function App() {
         setReady(true);
       })
       .catch(() => setFatal("เปิดหน้าจองไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"));
-  }, [liffId]);
+  }, [liffId, isLegal]);
 
   const api = useMemo(
     () => createBookingApi({ baseUrl, shopId, getIdToken: () => idToken }),
@@ -50,6 +52,8 @@ export function App() {
     [baseUrl, idToken],
   );
 
+  // Legal pages are public static text: no LIFF login, no shop id needed.
+  if (isLegal) return <LegalPage kind={page} />;
   if (useMock) {
     return isOnboarding ? <MockOnboarding /> : isAdmin ? <MockAdmin /> : <MockBooking />;
   }

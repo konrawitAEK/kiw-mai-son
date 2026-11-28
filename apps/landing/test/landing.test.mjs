@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, statSync } from "node:fs";
+import { PRIVACY_NOTICE, SHOP_TERMS } from "../../../packages/core/src/legal.ts";
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 const html = read("index.html");
@@ -55,5 +56,38 @@ describe("landing page", () => {
   it("external links use rel=noopener", () => {
     for (const m of html.matchAll(/<a\b[^>]*href="https:[^>]*>/g))
       expect(m[0]).toContain("noopener");
+  });
+});
+
+describe("privacy notice and shop terms pages", () => {
+  const docs = [
+    ["privacy.html", PRIVACY_NOTICE],
+    ["terms.html", SHOP_TERMS],
+  ];
+
+  it("landing page footer links to both", () => {
+    expect(html).toContain('href="privacy.html"');
+    expect(html).toContain('href="terms.html"');
+  });
+
+  it.each(docs)("%s is Thai, mobile-ready, untracked and matches legal.ts", (file, doc) => {
+    const page = read(file);
+    expect(page).toMatch(/<html lang="th">/);
+    expect(page).toMatch(/name="viewport" content="width=device-width, initial-scale=1"/);
+    expect(page).toContain(`<h1>${doc.title}</h1>`);
+    expect(page).not.toMatch(/<script/i);
+    expect(page).not.toMatch(/(src|href)="https?:\/\//);
+    for (const s of doc.sections) {
+      expect(page).toContain(`<h2>${s.heading}</h2>`);
+      for (const p of s.paragraphs) expect(page).toContain(`<p>${p}</p>`);
+    }
+  });
+
+  it("states the roles clearly (shop = controller, we = processor) and the delete/export promise", () => {
+    expect(SHOP_TERMS.sections.map((s) => s.paragraphs.join(" ")).join(" ")).toMatch(
+      /ผู้ควบคุมข้อมูล.*ผู้ประมวลผล/,
+    );
+    expect(read("terms.html")).toMatch(/CSV/);
+    expect(read("terms.html")).toMatch(/ลบร้าน/);
   });
 });

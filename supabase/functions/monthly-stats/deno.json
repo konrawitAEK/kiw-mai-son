@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "@kms/core": "../../../packages/core/src/index.ts"
+  },
+  "unstable": ["sloppy-imports"]
+}

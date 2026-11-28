@@ -1,4 +1,6 @@
 import { bangkokDayStart, toBangkokIso } from "@kms/core";
+import { createDataPrivacyRoutes } from "./data-privacy.js";
+import { createDepositRoutes } from "./deposit.js";
 import { DAY_MS, err, json, MIN_MS, MSG, UUID } from "./http.js";
 import { createOnboardingAdminRoutes } from "./onboarding.js";
 import type { Deps } from "./types.js";
@@ -23,6 +25,16 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
  */
 export function createAdminRoutes(deps: Deps) {
   const onboarding = deps.onboarding ? createOnboardingAdminRoutes(deps.onboarding) : null;
+  const deposits = createDepositRoutes(deps);
+  const privacy = createDataPrivacyRoutes(deps);
+
+  /** Booking of this shop, or null (a booking of another shop looks the same as a missing one). */
+  async function shopBooking(shopId: string, id: string) {
+    if (!UUID.test(id)) return null;
+    const booking = await deps.db.getBooking(id);
+    return booking && booking.shopId === shopId ? booking : null;
+  }
+
   return async function admin(
     req: Request,
     shopId: string,
@@ -68,6 +80,22 @@ export function createAdminRoutes(deps: Deps) {
     }
     if (req.method === "POST" && a === "time-off" && rest.length === 1) {
       return blockTime(req, shopId);
+    }
+    if (a === "bookings" && b && rest.length === 3 && (c === "slip" || c === "deposit")) {
+      const booking = await shopBooking(shopId, b);
+      if (!booking) return err(404, MSG.notFound);
+      if (req.method === "GET" && c === "slip") return deposits.adminGetSlip(booking);
+      if (req.method === "POST" && c === "deposit") return deposits.adminDecide(req, booking);
+    }
+    if (a === "settings" && rest.length === 1) {
+      if (req.method === "GET") return deposits.adminGetSettings(shopId);
+      if (req.method === "POST") return deposits.adminSaveSettings(req, shopId);
+    }
+    if (req.method === "GET" && a === "export" && rest.length === 1) {
+      return privacy.exportCsv(shopId, url);
+    }
+    if (req.method === "POST" && a === "delete" && rest.length === 1) {
+      return privacy.deleteShop(req, shopId);
     }
     return err(404, MSG.notFound);
   };

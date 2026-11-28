@@ -8,6 +8,9 @@ export interface LiffUser {
   displayName: string;
 }
 
+/** Mirrors `bookings.deposit_status` (see supabase/migrations/20261128020000_deposits.sql). */
+export type DepositStatus = "none" | "pending" | "submitted" | "paid" | "rejected" | "refunded";
+
 export interface BookingRecord {
   id: string;
   shopId: string;
@@ -18,6 +21,9 @@ export interface BookingRecord {
   start: string;
   end: string;
   status: Booking["status"];
+  depositStatus: DepositStatus;
+  /** THB; 0 = no deposit. */
+  depositAmount: number;
 }
 
 export interface DayData {
@@ -35,6 +41,20 @@ export interface InsertBookingInput {
   end: string;
   /** Default "line". Owner-created bookings for phone customers use "owner". */
   channel?: "line" | "owner";
+  /** THB. > 0 creates the booking as status "pending" / deposit "pending"; 0 or omitted = confirmed, no deposit. */
+  depositAmount?: number;
+}
+
+export interface ShopPayment {
+  /** Raw PromptPay ID as the owner entered it (never exposed to customers; only the QR payload is). */
+  promptPayId: string | null;
+  /** Hours until an unpaid deposit auto-cancels; null = off. */
+  depositTimeoutHours: number | null;
+}
+
+export interface SlipImage {
+  contentType: "image/jpeg" | "image/png" | "image/webp";
+  data: Uint8Array;
 }
 
 /** One row of the owner's schedule view. */
@@ -49,6 +69,8 @@ export interface ScheduleBooking {
   end: string;
   status: Booking["status"];
   channel: "line" | "owner";
+  depositStatus: DepositStatus;
+  depositAmount: number;
 }
 
 export interface TimeOffRecord {
@@ -96,6 +118,52 @@ export interface Db {
   /** Owner admin: active staff, non-cancelled bookings and time off overlapping [fromIso, toIso). */
   listSchedule(shopId: string, fromIso: string, toIso: string): Promise<Schedule>;
   insertTimeOff(input: InsertTimeOffInput): Promise<TimeOffRecord>;
+  /** Deposit settings of the shop, or null if the shop does not exist. */
+  getShopPayment(shopId: string): Promise<ShopPayment | null>;
+  updateShopPayment(shopId: string, payment: ShopPayment): Promise<void>;
+  /** Stores (replaces) the slip and sets deposit_status "submitted". Only valid while pending/submitted/rejected. */
+  saveSlip(bookingId: string, slip: SlipImage): Promise<void>;
+  getSlip(bookingId: string): Promise<SlipImage | null>;
+  /** "paid" -> status confirmed + deposit paid; "rejected" -> deposit rejected (booking stays pending). */
+  decideDeposit(bookingId: string, decision: "paid" | "rejected"): Promise<void>;
+  /** `shops.name`, or null if the shop does not exist. */
+  getShopName(shopId: string): Promise<string | null>;
+  /** Data export: all customers of the shop. */
+  exportCustomers(shopId: string): Promise<ExportCustomer[]>;
+  /** Data export: all bookings of the shop (any status), ordered by start. */
+  exportBookings(shopId: string): Promise<ExportBooking[]>;
+  /**
+   * Permanently deletes the shop and everything under it (staff, services, customers, bookings, slips,
+   * LINE channel secrets, ...) via ON DELETE CASCADE from `shops`.
+   */
+  deleteShop(shopId: string): Promise<void>;
+}
+
+/** One customer row of the owner's data export. */
+export interface ExportCustomer {
+  displayName: string;
+  /** null for phone-only customers (owner bookings). */
+  lineUserId: string | null;
+  phone: string | null;
+  /** ISO. */
+  createdAt: string;
+}
+
+/** One booking row of the owner's data export (cancelled bookings included). */
+export interface ExportBooking {
+  id: string;
+  /** ISO with +07:00 offset. */
+  start: string;
+  end: string;
+  status: string;
+  channel: "line" | "owner";
+  serviceName: string;
+  staffName: string;
+  customerName: string;
+  customerPhone: string | null;
+  depositStatus: DepositStatus;
+  depositAmount: number;
+  createdAt: string;
 }
 
 export interface HoursWindow {
