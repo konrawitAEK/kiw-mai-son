@@ -7,7 +7,7 @@ import { BookingPage } from "./BookingPage.js";
 import { createBookingApi, type BookingApi } from "./api.js";
 import { MyBookingsPage } from "./MyBookingsPage.js";
 import { LegalPage } from "./LegalPage.js";
-import { closeLiff, initLiff } from "./liff.js";
+import { closeLiff, initLiff, sendBookingConfirmation } from "./liff.js";
 
 const useMock = import.meta.env.DEV && new URLSearchParams(window.location.search).has("mock");
 
@@ -82,7 +82,7 @@ export function App() {
     const rescheduleId = new URLSearchParams(window.location.search).get("reschedule") ?? undefined;
     return <MyBookingsPage api={api} onClose={closeLiff} initialRescheduleId={rescheduleId} />;
   }
-  return <BookingPage api={api} onClose={closeLiff} />;
+  return <BookingPage api={api} onClose={closeLiff} onBooked={sendBookingConfirmation} />;
 }
 
 function MockBooking({ myBookings }: { myBookings: boolean }) {
