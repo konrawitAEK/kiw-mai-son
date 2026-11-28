@@ -11,6 +11,7 @@ import type {
 import { BillingPanel } from "./BillingPanel.js";
 import { ReferralPanel } from "./ReferralPanel.js";
 import { LegalLinks } from "./LegalPage.js";
+import { saveCsv } from "./csv-download.js";
 import { dayLabel, priceLabel, timeLabel, todayBangkok } from "./format.js";
 
 type View = "today" | "week";
@@ -726,34 +727,31 @@ function SettingsForm(props: {
   );
 }
 
-/** Triggers a browser download of CSV text (BOM already included by the server). */
-function saveCsv(filename: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 function PrivacyPanel(props: { api: AdminApi; onBack: () => void; onDeleted: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmName, setConfirmName] = useState("");
   const [armed, setArmed] = useState(false);
+  const [csvLink, setCsvLink] = useState<{ href: string; filename: string } | null>(null);
 
   async function download(kind: ExportKind) {
     if (busy) return;
     setBusy(true);
     setError(null);
     setNotice(null);
+    setCsvLink(null);
     try {
       const text = await props.api.exportCsv(kind);
-      saveCsv(`kiw-mai-son-${kind}.csv`, text);
-      setNotice("ดาวน์โหลดไฟล์แล้ว");
+      const result = saveCsv(`kiw-mai-son-${kind}.csv`, text);
+      if (result.mode === "link") {
+        setCsvLink({ href: result.href, filename: result.filename });
+        setNotice(
+          "ในแอป LINE ดาวน์โหลดไฟล์ตรง ๆ ไม่ได้ กดลิงก์ด้านล่างเพื่อเปิดในเบราว์เซอร์แล้วบันทึกไฟล์",
+        );
+      } else {
+        setNotice("ดาวน์โหลดไฟล์แล้ว");
+      }
     } catch (e) {
       setError(msg(e));
     } finally {
@@ -805,6 +803,19 @@ function PrivacyPanel(props: { api: AdminApi; onBack: () => void; onDeleted: () 
       >
         ดาวน์โหลดรายการจองทั้งหมด
       </button>
+      {csvLink && (
+        <p>
+          <a
+            className="secondary"
+            href={csvLink.href}
+            download={csvLink.filename}
+            target="_blank"
+            rel="noopener"
+          >
+            เปิดไฟล์ CSV ในเบราว์เซอร์
+          </a>
+        </p>
+      )}
 
       <h3>ลบร้านและข้อมูลทั้งหมด</h3>
       <p className="muted">

@@ -96,6 +96,26 @@ describe("owner data export and delete", () => {
     click.mockRestore();
   });
 
+  it("inside the LINE in-app browser shows an external-browser link instead of a blob download", async () => {
+    const create = vi.fn(() => "blob:x");
+    Object.assign(URL, { createObjectURL: create, revokeObjectURL: vi.fn() });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const ua = vi
+      .spyOn(window.navigator, "userAgent", "get")
+      .mockReturnValue("Mozilla/5.0 (iPhone) Mobile/15E148 Line/14.10.0");
+    const api = fakeApi();
+    const user = await openPrivacy(api);
+    await user.click(screen.getByRole("button", { name: "ดาวน์โหลดรายชื่อลูกค้า" }));
+    const link = await screen.findByRole("link", { name: "เปิดไฟล์ CSV ในเบราว์เซอร์" });
+    expect(link.getAttribute("href")).toMatch(/^data:text\/csv;charset=utf-8;base64,/);
+    expect(link.getAttribute("download")).toBe("kiw-mai-son-customers.csv");
+    expect(screen.getByRole("status").textContent).toContain("กดลิงก์");
+    expect(create).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled();
+    ua.mockRestore();
+    click.mockRestore();
+  });
+
   it("shows a Thai error if the export fails", async () => {
     const api = fakeApi({ exportCsv: vi.fn().mockRejectedValue(new Error("x")) });
     const user = await openPrivacy(api);
