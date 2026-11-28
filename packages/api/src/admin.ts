@@ -4,6 +4,7 @@ import { createDataPrivacyRoutes } from "./data-privacy.js";
 import { createDepositRoutes } from "./deposit.js";
 import { DAY_MS, err, json, MIN_MS, MSG, UUID } from "./http.js";
 import { createOnboardingAdminRoutes } from "./onboarding.js";
+import { createReferralRoutes } from "./referral.js";
 import type { Deps } from "./types.js";
 
 const MAX_DAYS = 7;
@@ -29,6 +30,7 @@ export function createAdminRoutes(deps: Deps) {
   const deposits = createDepositRoutes(deps);
   const privacy = createDataPrivacyRoutes(deps);
   const billing = deps.billing ? createBillingRoutes(deps.billing) : null;
+  const referral = deps.referral ? createReferralRoutes(deps.referral) : null;
 
   /** Booking of this shop, or null (a booking of another shop looks the same as a missing one). */
   async function shopBooking(shopId: string, id: string) {
@@ -95,6 +97,12 @@ export function createAdminRoutes(deps: Deps) {
     }
     if (billing && req.method === "GET" && a === "billing" && rest.length === 1) {
       return billing.ownerInfo(shopId);
+    }
+    if (referral && a === "referral") {
+      if (req.method === "GET" && rest.length === 1) return referral.ownerInfo(shopId);
+      if (req.method === "POST" && b === "redeem" && rest.length === 2) {
+        return referral.redeem(req, shopId);
+      }
     }
     if (req.method === "GET" && a === "export" && rest.length === 1) {
       return privacy.exportCsv(shopId, url);

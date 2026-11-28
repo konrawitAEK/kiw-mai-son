@@ -134,6 +134,23 @@ export function createMockAdminApi(): AdminApi {
         b.depositStatus = "paid";
       } else b.depositStatus = "rejected";
     },
+    getReferral: async () => ({
+      code: "DEMO2345",
+      referredCount: 0,
+      redeemed: false,
+      bonusMonths: 1,
+      shareText: "ร้านเดโม ชวนใช้ คิวไม่ซ้อน ใส่โค้ด DEMO2345 ทั้งสองร้านได้ใช้ฟรีเพิ่ม 1 เดือน",
+    }),
+    redeemReferral: async () => ({
+      message: "ใช้โค้ดแนะนำสำเร็จ ทั้งสองร้านได้ใช้ฟรีเพิ่ม 1 เดือน",
+      referral: {
+        code: "DEMO2345",
+        referredCount: 0,
+        redeemed: true,
+        bonusMonths: 1,
+        shareText: "",
+      },
+    }),
     getBilling: async () => ({
       status: "trial",
       label: "ทดลองใช้ฟรี ถึง 28 ธ.ค. 2569 (เหลือ 7 วัน)",

@@ -1,4 +1,5 @@
 import type { BillingRouteDeps } from "./billing.js";
+import type { ReferralDb } from "./referral.js";
 import type { Booking, Service, Staff, TimeOff, WorkingHours } from "@kms/core";
 import type { ChannelValidator } from "./line-channel.js";
 import type { setupRichMenu } from "./rich-menu.js";
@@ -224,6 +225,8 @@ export interface Deps {
   onboarding?: OnboardingDeps;
   /** Subscription billing (T17); routes answer 404 when unset. */
   billing?: BillingRouteDeps;
+  /** Shop referral codes (T18); routes answer 404 when unset. */
+  referral?: ReferralDb;
   /** Verifies a LIFF ID token; null if invalid/expired. */
   verifyIdToken(idToken: string): Promise<LiffUser | null>;
   now(): number;

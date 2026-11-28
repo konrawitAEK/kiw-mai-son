@@ -53,6 +53,16 @@ export interface AdminBilling {
   plans: Record<PlanId, { price: number; label: string; promptPayPayload: string | null }>;
 }
 
+export interface AdminReferral {
+  code: string;
+  referredCount: number;
+  /** true if this shop already used another shop's code. */
+  redeemed: boolean;
+  bonusMonths: number;
+  /** Thai text the owner can send to another shop. */
+  shareText: string;
+}
+
 export type ExportKind = "customers" | "bookings";
 
 export interface AdminApi {
@@ -71,6 +81,10 @@ export interface AdminApi {
   decideDeposit(bookingId: string, decision: "confirm" | "reject"): Promise<void>;
   /** Subscription status and PromptPay QR payloads (199 / 1,990 THB). */
   getBilling(): Promise<AdminBilling>;
+  /** This shop's referral code and how many shops used it. */
+  getReferral(): Promise<AdminReferral>;
+  /** Uses another shop's code (both shops get +1 free month). Throws ApiError with a Thai message on failure. */
+  redeemReferral(code: string): Promise<{ message: string; referral: AdminReferral }>;
   getSettings(): Promise<AdminSettings>;
   saveSettings(settings: AdminSettings): Promise<void>;
   /** CSV text (UTF-8, BOM included) of the shop's customers or bookings. */
@@ -156,6 +170,12 @@ export function createAdminApi(opts: {
     },
     async getBilling() {
       return (await call<{ billing: AdminBilling }>("/admin/billing")).billing;
+    },
+    async getReferral() {
+      return (await call<{ referral: AdminReferral }>("/admin/referral")).referral;
+    },
+    redeemReferral(code) {
+      return call("/admin/referral/redeem", "POST", { code });
     },
     getSettings() {
       return call<AdminSettings>("/admin/settings");

@@ -9,11 +9,12 @@ import type {
   ExportKind,
 } from "./admin-api.js";
 import { BillingPanel } from "./BillingPanel.js";
+import { ReferralPanel } from "./ReferralPanel.js";
 import { LegalLinks } from "./LegalPage.js";
 import { dayLabel, priceLabel, timeLabel, todayBangkok } from "./format.js";
 
 type View = "today" | "week";
-type Mode = "schedule" | "add" | "block" | "settings" | "privacy" | "billing";
+type Mode = "schedule" | "add" | "block" | "settings" | "privacy" | "billing" | "referral";
 
 interface Props {
   api: AdminApi;
@@ -138,7 +139,9 @@ export function AdminPage({ api, now = Date.now }: Props) {
                   ? "ข้อมูลและความเป็นส่วนตัว"
                   : mode === "billing"
                     ? "ค่าบริการ"
-                    : "ตารางคิว"}
+                    : mode === "referral"
+                      ? "แนะนำเพื่อน ฟรี 1 เดือน"
+                      : "ตารางคิว"}
         </h2>
       </header>
 
@@ -175,6 +178,9 @@ export function AdminPage({ api, now = Date.now }: Props) {
             </button>
             <button type="button" className="secondary" onClick={() => setMode("billing")}>
               ค่าบริการ
+            </button>
+            <button type="button" className="secondary" onClick={() => setMode("referral")}>
+              แนะนำเพื่อน ฟรี 1 เดือน
             </button>
             <button type="button" className="secondary" onClick={() => setMode("privacy")}>
               ข้อมูลและความเป็นส่วนตัว
@@ -249,6 +255,7 @@ export function AdminPage({ api, now = Date.now }: Props) {
         />
       )}
 
+      {mode === "referral" && <ReferralPanel api={api} onBack={() => setMode("schedule")} />}
       {mode === "billing" && <BillingPanel api={api} onBack={() => setMode("schedule")} />}
 
       {mode === "privacy" && (
